@@ -1,11 +1,6 @@
 import { Button } from '@/components/ui/button';
-import { getLevel, useAuth } from '@/contexts/AuthContext';
-import { Loader2, Sparkles } from 'lucide-react';
-import { Link } from '@tanstack/react-router';
-import {
-  useManageSubscription,
-  useTokenPackPurchase,
-} from '@/services/subscriptionService';
+import { useAuth } from '@/contexts/AuthContext';
+import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DeleteAccountDialog } from '@/components/auth/DeleteAccountDialog';
 import { Switch } from '@/components/ui/switch';
@@ -16,30 +11,9 @@ import { Input } from '@/components/ui/input';
 import * as Sentry from '@sentry/react';
 import { useProfile, useUpdateProfile } from '@/services/profileService';
 import { AvatarUpdateDialog } from '@/components/auth/AvatarUpdateDialog';
-import { useTokenPacks } from '@/hooks/useTokenPacks';
-import { PLAN_DISPLAY_NAMES } from '@/config/plan-features';
-
-function formatPeriodEnd(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
 
 export default function SettingsView() {
-  const { billing, user, resetPassword } = useAuth();
-  const level = getLevel(billing);
-  const freeTokens = billing?.tokens.free ?? 0;
-  const subscriptionTokens = billing?.tokens.subscription ?? 0;
-  const purchasedTokens = billing?.tokens.purchased ?? 0;
-  const totalTokens = billing?.tokens.total ?? 0;
-  const periodEnd = formatPeriodEnd(
-    billing?.subscription?.currentPeriodEnd ?? null,
-  );
+  const { user, resetPassword } = useAuth();
   const { data: profile } = useProfile();
   const { mutate: updateProfile, isPending: isUpdateLoading } =
     useUpdateProfile();
@@ -47,12 +21,6 @@ export default function SettingsView() {
   const [newName, setNewName] = useState(profile?.full_name || '');
   const [editingName, setEditingName] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
-  const { data: tokenPacks = [] } = useTokenPacks();
-  const {
-    mutate: purchaseTokenPack,
-    isPending: isPurchaseLoading,
-    variables: purchaseVariables,
-  } = useTokenPackPurchase();
 
   useEffect(() => {
     if (editingName) {
@@ -63,9 +31,6 @@ export default function SettingsView() {
   useEffect(() => {
     setNewName(profile?.full_name || '');
   }, [profile?.full_name]);
-
-  const { mutate: handleManageSubscription, isPending: isManageLoading } =
-    useManageSubscription();
 
   const handleUpdateName = () => {
     updateProfile(
@@ -100,14 +65,14 @@ export default function SettingsView() {
         onSuccess: () => {
           toast({
             title: 'Success',
-            description: 'Your notifications have been updated',
+            description: 'Your notification preferences have been updated',
           });
         },
         onError: (e) => {
           Sentry.captureException(e);
           toast({
             title: 'Error',
-            description: 'Failed to update notifications',
+            description: 'Failed to update notification preferences',
             variant: 'destructive',
           });
         },
@@ -115,352 +80,194 @@ export default function SettingsView() {
     );
   };
 
-  const { mutate: handleResetPassword, isPending: isResetLoading } =
-    useMutation({
-      mutationFn: async () => {
-        if (!user?.email) throw new Error('User email not found');
-        await resetPassword(user?.email);
-      },
-      onSuccess: () => {
-        toast({
-          title: 'Success',
-          description:
-            'Password reset instructions have been sent to your email',
-        });
-      },
-      onError: () => {
-        toast({
-          title: 'Error',
-          description: 'Failed to reset password',
-          variant: 'destructive',
-        });
-      },
-    });
-
-  const tierLabel = `Adam ${PLAN_DISPLAY_NAMES[level]}`;
-
-  const tierAccent =
-    level === 'free'
-      ? 'bg-adam-neutral-700 text-adam-neutral-50'
-      : level === 'standard'
-        ? 'bg-adam-blue/15 text-adam-blue'
-        : 'bg-gradient-to-r from-adam-blue/20 to-fuchsia-500/20 text-adam-neutral-50';
+  const handleCopyUserId = () => {
+    if (user?.id) {
+      navigator.clipboard.writeText(user.id);
+      toast({
+        title: 'Copied!',
+        description: 'User ID copied to clipboard',
+      });
+    }
+  };
 
   return (
-    <div className="flex min-h-full w-full items-center justify-center bg-adam-background-1 px-6 py-10">
-      <div className="w-full max-w-xl">
-        <header className="mb-8">
-          <h1 className="text-2xl font-medium tracking-tight text-adam-neutral-50">
-            Settings
-          </h1>
-          <p className="mt-1 text-sm text-adam-neutral-200">
-            Manage your account, billing, and preferences.
+    <div className="flex h-full w-full flex-col overflow-y-auto bg-adam-bg-primary">
+      <div className="mx-auto w-full max-w-2xl px-4 py-8">
+        <div className="mb-8 flex flex-col gap-2">
+          <h1 className="text-2xl font-bold text-adam-text-primary">Settings</h1>
+          <p className="text-sm text-adam-text-secondary">
+            Manage your account settings and preferences
           </p>
-        </header>
+        </div>
 
-        <div className="flex flex-col gap-4">
-          {/* Account */}
-          <section className="rounded-xl border border-adam-neutral-800 bg-adam-background-2 p-6">
-            <h2 className="mb-5 text-sm font-medium text-adam-neutral-50">
-              Account
-            </h2>
+        <div className="mb-6 flex flex-col gap-6">
+          <section className="flex flex-col gap-4 rounded-lg bg-adam-bg-secondary p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-adam-text-primary">
+                  Profile
+                </h2>
+                <p className="text-sm text-adam-text-secondary">
+                  Update your profile information
+                </p>
+              </div>
+              <AvatarUpdateDialog />
+            </div>
 
-            <div className="divide-y divide-adam-neutral-800">
-              <div className="flex items-center justify-between gap-4 pb-5">
-                <div className="flex min-w-0 flex-1 items-center gap-3">
-                  <AvatarUpdateDialog />
-                  {editingName ? (
-                    <Input
-                      ref={nameInputRef}
-                      value={newName}
-                      className="h-9 w-full max-w-xs"
-                      onChange={(e) => setNewName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-adam-text-primary">
+                  Name
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    {editingName ? (
+                      <Input
+                        ref={nameInputRef}
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            handleUpdateName();
+                          }
+                        }}
+                        className="pr-20"
+                      />
+                    ) : (
+                      <Input
+                        value={profile?.full_name || ''}
+                        disabled
+                        className="pr-20"
+                      />
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="absolute right-1 top-1 h-7 px-2 text-xs"
+                      onClick={() => {
+                        if (editingName) {
                           handleUpdateName();
+                        } else {
+                          setEditingName(true);
                         }
                       }}
-                    />
-                  ) : (
-                    <div className="min-w-0 truncate text-sm text-adam-neutral-50">
-                      {profile?.full_name || user?.email}
-                    </div>
-                  )}
-                </div>
-                {editingName ? (
-                  <div className="flex flex-shrink-0 items-center gap-2">
-                    <Button
-                      onClick={() => handleUpdateName()}
-                      variant="light"
                       disabled={isUpdateLoading}
-                      className="rounded-full font-light"
                     >
                       {isUpdateLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : editingName ? (
                         'Save'
+                      ) : (
+                        'Edit'
                       )}
                     </Button>
-                    <Button
-                      onClick={() => {
-                        setEditingName(false);
-                        setNewName(profile?.full_name || '');
-                      }}
-                      variant="dark"
-                      className="rounded-full font-light"
-                    >
-                      Cancel
-                    </Button>
                   </div>
-                ) : (
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-adam-text-primary">
+                  Email
+                </label>
+                <Input value={user?.email || ''} disabled />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-medium text-adam-text-primary">
+                  User ID
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    value={user?.id || ''}
+                    disabled
+                    className="flex-1 font-mono text-xs"
+                  />
                   <Button
-                    onClick={() => setEditingName(true)}
-                    variant="dark"
-                    className="flex-shrink-0 rounded-full font-light"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCopyUserId}
+                    className="shrink-0"
                   >
-                    Edit
+                    Copy
                   </Button>
-                )}
-              </div>
-
-              <div className="py-5">
-                <div className="text-sm text-adam-neutral-50">Email</div>
-                <div className="mt-0.5 truncate text-xs text-adam-neutral-200">
-                  {user?.email}
                 </div>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 pt-5">
-                <div className="min-w-0">
-                  <div className="text-sm text-adam-neutral-50">Password</div>
-                  <div className="mt-0.5 text-xs text-adam-neutral-200">
-                    Send a reset link to your email
-                  </div>
-                </div>
-                <Button
-                  onClick={() => handleResetPassword()}
-                  disabled={isResetLoading}
-                  variant="dark"
-                  className="flex-shrink-0 rounded-full font-light"
-                >
-                  {isResetLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    'Reset Password'
-                  )}
-                </Button>
               </div>
             </div>
           </section>
 
-          {/* Notifications */}
-          <section className="rounded-xl border border-adam-neutral-800 bg-adam-background-2 p-6">
-            <h2 className="mb-5 text-sm font-medium text-adam-neutral-50">
-              Notifications
-            </h2>
+          <section className="flex flex-col gap-4 rounded-lg bg-adam-bg-secondary p-6">
+            <div>
+              <h2 className="text-lg font-semibold text-adam-text-primary">
+                Notifications
+              </h2>
+              <p className="text-sm text-adam-text-secondary">
+                Manage your notification preferences
+              </p>
+            </div>
 
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="text-sm text-adam-neutral-50">Responses</div>
-                <div className="mt-0.5 text-xs leading-relaxed text-adam-neutral-200">
-                  Get notified when Adam finishes a long-running request.
-                </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-adam-text-primary">
+                  Email Notifications
+                </p>
+                <p className="text-xs text-adam-text-secondary">
+                  Receive email notifications for important updates
+                </p>
               </div>
               <Switch
-                className="mt-0.5"
-                checked={profile?.notifications_enabled ?? false}
+                checked={profile?.notifications_enabled ?? true}
                 onCheckedChange={handleUpdateNotifications}
               />
             </div>
           </section>
 
-          {/* Billing */}
-          <section className="rounded-xl border border-adam-neutral-800 bg-adam-background-2 p-6">
-            <h2 className="mb-5 text-sm font-medium text-adam-neutral-50">
-              Billing
-            </h2>
+          <section className="flex flex-col gap-4 rounded-lg bg-adam-bg-secondary p-6">
+            <div>
+              <h2 className="text-lg font-semibold text-adam-text-primary">
+                Security
+              </h2>
+              <p className="text-sm text-adam-text-secondary">
+                Manage your security settings
+              </p>
+            </div>
 
-            <div className="flex flex-col gap-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium',
-                      tierAccent,
-                    )}
-                  >
-                    {(level === 'pro' || level === 'max') && (
-                      <Sparkles className="h-3 w-3" />
-                    )}
-                    {tierLabel}
-                  </span>
-                  {periodEnd && (
-                    <span className="text-xs text-adam-neutral-300">
-                      Renews {periodEnd}
-                    </span>
-                  )}
-                </div>
-
-                <div className="flex flex-shrink-0 items-center gap-2">
-                  <Button
-                    onClick={() => handleManageSubscription()}
-                    className="rounded-full font-light"
-                    variant="dark"
-                    disabled={isManageLoading}
-                  >
-                    {isManageLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : level !== 'free' ? (
-                      'Manage'
-                    ) : (
-                      'Manage billing'
-                    )}
-                  </Button>
-                  {level === 'free' && (
-                    <Link to="/subscription">
-                      <Button
-                        className="rounded-full font-light"
-                        variant="light"
-                      >
-                        Upgrade
-                      </Button>
-                    </Link>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {level !== 'free' && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-adam-neutral-200">
-                      Subscription tokens
-                    </span>
-                    <span className="text-xs tabular-nums text-adam-neutral-50">
-                      {subscriptionTokens.toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                {freeTokens > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-adam-neutral-200">
-                      Daily free tokens
-                    </span>
-                    <span className="text-xs tabular-nums text-adam-neutral-50">
-                      {freeTokens.toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                {purchasedTokens > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-adam-neutral-200">
-                      Purchased tokens
-                    </span>
-                    <span className="text-xs tabular-nums text-adam-neutral-50">
-                      {purchasedTokens.toLocaleString()}
-                    </span>
-                  </div>
-                )}
-                <div className="mt-1 flex items-center justify-between border-t border-adam-neutral-800 pt-3">
-                  <span className="text-sm text-adam-neutral-50">
-                    Total available
-                  </span>
-                  <span className="text-sm font-medium tabular-nums text-adam-neutral-50">
-                    {totalTokens.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-
-              {tokenPacks.length > 0 && (
-                <div className="flex flex-col gap-2 border-t border-adam-neutral-800 pt-5">
-                  <div className="flex items-baseline justify-between">
-                    <div className="text-sm text-adam-neutral-50">
-                      Buy more tokens
-                    </div>
-                    <div className="text-xs text-adam-neutral-200">
-                      Never expire
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {tokenPacks.map((pack) => {
-                      const isThisPending =
-                        isPurchaseLoading &&
-                        purchaseVariables?.priceId === pack.stripePriceId;
-                      return (
-                        <button
-                          key={pack.id}
-                          type="button"
-                          disabled={isPurchaseLoading}
-                          onClick={() =>
-                            purchaseTokenPack({ priceId: pack.stripePriceId })
-                          }
-                          className={cn(
-                            'relative flex flex-col items-start rounded-lg border border-adam-neutral-800 bg-adam-background-1 px-3 py-2.5 text-left transition-colors',
-                            'hover:border-adam-blue/40 hover:bg-adam-neutral-800/40',
-                            'disabled:cursor-not-allowed disabled:opacity-50',
-                          )}
-                        >
-                          {isThisPending && (
-                            <Loader2 className="absolute right-2 top-2 h-3.5 w-3.5 animate-spin text-adam-neutral-200" />
-                          )}
-                          <div className="text-sm font-medium tabular-nums text-adam-neutral-50">
-                            {pack.tokenAmount.toLocaleString()}
-                          </div>
-                          <div className="mt-0.5 text-xs tabular-nums text-adam-neutral-200">
-                            ${(pack.priceCents / 100).toFixed(2)}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+            <div className="flex flex-col gap-3">
+              <Button
+                variant="outline"
+                onClick={() => resetPassword?.(user?.email || '')}
+                className="w-fit"
+              >
+                Reset Password
+              </Button>
             </div>
           </section>
 
-          {/* Data & Privacy */}
-          <section className="rounded-xl border border-adam-neutral-800 bg-adam-background-2 p-6">
-            <h2 className="mb-5 text-sm font-medium text-adam-neutral-50">
-              Data and privacy
-            </h2>
+          <section className="flex flex-col gap-4 rounded-lg bg-adam-bg-secondary p-6">
+            <div>
+              <h2 className="text-lg font-semibold text-adam-text-primary">
+                Danger Zone
+              </h2>
+              <p className="text-sm text-adam-text-secondary">
+                Irreversible and destructive actions
+              </p>
+            </div>
 
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <div className="text-sm text-adam-neutral-50">
-                  Delete account
-                </div>
-                <div className="mt-0.5 text-xs leading-relaxed text-adam-neutral-200">
-                  Permanently delete your account and all associated data.
-                </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-adam-text-primary">
+                  Delete Account
+                </p>
+                <p className="text-xs text-adam-text-secondary">
+                  Permanently delete your account and all data
+                </p>
               </div>
               <DeleteAccountDialog>
-                <Button
-                  className="flex-shrink-0 rounded-full font-light"
-                  variant="destructive"
-                >
+                <Button variant="ghost" className="h-8 text-sm text-red-500 hover:text-red-400 hover:bg-red-500/10">
                   Delete
                 </Button>
               </DeleteAccountDialog>
             </div>
           </section>
-
-          <div className="mt-2 flex items-center justify-center gap-3 text-xs text-adam-neutral-300">
-            <Link
-              to="/terms-of-service"
-              className="transition-colors hover:text-adam-neutral-50"
-            >
-              Terms of Service
-            </Link>
-            <span aria-hidden className="text-adam-neutral-700">
-              •
-            </span>
-            <Link
-              to="/privacy-policy"
-              className="transition-colors hover:text-adam-neutral-50"
-            >
-              Privacy Policy
-            </Link>
-          </div>
         </div>
       </div>
     </div>

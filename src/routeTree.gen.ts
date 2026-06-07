@@ -22,7 +22,6 @@ import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
 import { Route as LayoutAuthRouteImport } from './routes/_layout/_auth'
 import { Route as LayoutSplatRouteImport } from './routes/_layout/$'
 import { Route as LayoutShareIdRouteImport } from './routes/_layout/share/$id'
-import { Route as LayoutAuthSubscriptionRouteImport } from './routes/_layout/_auth/subscription'
 import { Route as LayoutAuthSettingsRouteImport } from './routes/_layout/_auth/settings'
 import { Route as LayoutAuthHistoryRouteImport } from './routes/_layout/_auth/history'
 import { Route as LayoutAuthEditorIdRouteImport } from './routes/_layout/_auth/editor/$id'
@@ -90,11 +89,6 @@ const LayoutShareIdRoute = LayoutShareIdRouteImport.update({
   path: '/share/$id',
   getParentRoute: () => LayoutRoute,
 } as any)
-const LayoutAuthSubscriptionRoute = LayoutAuthSubscriptionRouteImport.update({
-  id: '/subscription',
-  path: '/subscription',
-  getParentRoute: () => LayoutAuthRoute,
-} as any)
 const LayoutAuthSettingsRoute = LayoutAuthSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -124,7 +118,6 @@ export interface FileRoutesByFullPath {
   '/$': typeof LayoutSplatRoute
   '/history': typeof LayoutAuthHistoryRoute
   '/settings': typeof LayoutAuthSettingsRoute
-  '/subscription': typeof LayoutAuthSubscriptionRoute
   '/share/$id': typeof LayoutShareIdRoute
   '/editor/$id': typeof LayoutAuthEditorIdRoute
 }
@@ -141,7 +134,6 @@ export interface FileRoutesByTo {
   '/': typeof LayoutIndexRoute
   '/history': typeof LayoutAuthHistoryRoute
   '/settings': typeof LayoutAuthSettingsRoute
-  '/subscription': typeof LayoutAuthSubscriptionRoute
   '/share/$id': typeof LayoutShareIdRoute
   '/editor/$id': typeof LayoutAuthEditorIdRoute
 }
@@ -161,7 +153,6 @@ export interface FileRoutesById {
   '/_layout/': typeof LayoutIndexRoute
   '/_layout/_auth/history': typeof LayoutAuthHistoryRoute
   '/_layout/_auth/settings': typeof LayoutAuthSettingsRoute
-  '/_layout/_auth/subscription': typeof LayoutAuthSubscriptionRoute
   '/_layout/share/$id': typeof LayoutShareIdRoute
   '/_layout/_auth/editor/$id': typeof LayoutAuthEditorIdRoute
 }
@@ -180,7 +171,6 @@ export interface FileRouteTypes {
     | '/$'
     | '/history'
     | '/settings'
-    | '/subscription'
     | '/share/$id'
     | '/editor/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -197,7 +187,6 @@ export interface FileRouteTypes {
     | '/'
     | '/history'
     | '/settings'
-    | '/subscription'
     | '/share/$id'
     | '/editor/$id'
   id:
@@ -216,7 +205,6 @@ export interface FileRouteTypes {
     | '/_layout/'
     | '/_layout/_auth/history'
     | '/_layout/_auth/settings'
-    | '/_layout/_auth/subscription'
     | '/_layout/share/$id'
     | '/_layout/_auth/editor/$id'
   fileRoutesById: FileRoutesById
@@ -326,13 +314,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutShareIdRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/_auth/subscription': {
-      id: '/_layout/_auth/subscription'
-      path: '/subscription'
-      fullPath: '/subscription'
-      preLoaderRoute: typeof LayoutAuthSubscriptionRouteImport
-      parentRoute: typeof LayoutAuthRoute
-    }
     '/_layout/_auth/settings': {
       id: '/_layout/_auth/settings'
       path: '/settings'
@@ -360,14 +341,12 @@ declare module '@tanstack/react-router' {
 interface LayoutAuthRouteChildren {
   LayoutAuthHistoryRoute: typeof LayoutAuthHistoryRoute
   LayoutAuthSettingsRoute: typeof LayoutAuthSettingsRoute
-  LayoutAuthSubscriptionRoute: typeof LayoutAuthSubscriptionRoute
   LayoutAuthEditorIdRoute: typeof LayoutAuthEditorIdRoute
 }
 
 const LayoutAuthRouteChildren: LayoutAuthRouteChildren = {
   LayoutAuthHistoryRoute: LayoutAuthHistoryRoute,
   LayoutAuthSettingsRoute: LayoutAuthSettingsRoute,
-  LayoutAuthSubscriptionRoute: LayoutAuthSubscriptionRoute,
   LayoutAuthEditorIdRoute: LayoutAuthEditorIdRoute,
 }
 

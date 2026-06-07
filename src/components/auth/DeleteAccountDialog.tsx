@@ -13,7 +13,6 @@ import { supabase } from '@/lib/supabase';
 import * as Sentry from '@sentry/react';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation } from '@tanstack/react-query';
-import posthog from 'posthog-js';
 
 type CancellationFeedback =
   | 'customer_service'
@@ -38,9 +37,6 @@ export const DeleteAccountDialog = ({
     useState<CancellationFeedback | null>(null);
   const { mutate: deleteUser, isPending: isDeleting } = useMutation({
     mutationFn: async () => {
-      posthog.capture('delete_account_called', {
-        reason: selectedReason,
-      });
       const { error } = await supabase.functions.invoke('delete-user', {
         method: 'POST',
         body: { reason: selectedReason },

@@ -12,25 +12,11 @@ import {
   handleTwitterShare,
   handleWhatsAppShare,
 } from '@/utils/shareUtils';
-import { MeshGifPreview } from '../viewer/MeshGifPreview';
 import { cn } from '@/lib/utils';
-import { useCurrentMessage } from '@/contexts/CurrentMessageContext';
 
 export function ShareContent() {
-  const { currentMessage } = useCurrentMessage();
   const { conversation, updateConversation } = useConversation();
   const [justCopied, setJustCopied] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [readyToDownload, setReadyToDownload] = useState(false);
-
-  const downloadGifRef = useRef<{ downloadGIF: () => Promise<void> } | null>(
-    null,
-  );
-
-  const downloadGIF = () => {
-    downloadGifRef.current?.downloadGIF();
-  };
 
   function handleChangePrivacy(privacy: 'public' | 'private') {
     updateConversation?.({
@@ -75,15 +61,6 @@ export function ShareContent() {
             ? 'Anyone with the link can view'
             : 'Only you can view'}
         </div>
-        {currentMessage?.content?.mesh && (
-          <MeshGifPreview
-            ref={downloadGifRef}
-            meshId={currentMessage.content.mesh.id}
-            setIsGenerating={setIsGenerating}
-            setProgress={setProgress}
-            setReadyToDownload={setReadyToDownload}
-          />
-        )}
         <div
           className={cn(
             'flex w-full flex-col gap-6 overflow-hidden transition-all duration-300 ease-in-out',
@@ -139,30 +116,6 @@ export function ShareContent() {
         </div>
       </div>
       <div className="flex w-full flex-col gap-2">
-        {readyToDownload && (
-          <Button
-            onClick={downloadGIF}
-            disabled={isGenerating}
-            className="relative overflow-hidden disabled:opacity-100"
-            variant="light"
-            style={
-              isGenerating
-                ? {
-                    background: `linear-gradient(90deg, #CCCCCC ${progress * 100}%, #FFFFFF ${progress * 100}%)`,
-                  }
-                : undefined
-            }
-          >
-            {isGenerating ? (
-              <div className="flex items-center gap-2">
-                Generating...
-                <Loader2 className="h-4 w-4 animate-spin" />
-              </div>
-            ) : (
-              'Download GIF'
-            )}
-          </Button>
-        )}
         {conversation.privacy === 'public' ? (
           <Button
             variant="destructive"

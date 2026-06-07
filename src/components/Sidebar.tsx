@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Menu, Plus, LogOut, Crown, Settings, LayoutGrid } from 'lucide-react';
+import { Menu, Plus, LogOut, Settings, LayoutGrid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Tooltip,
@@ -39,7 +39,7 @@ interface SidebarProps {
   setIsSidebarOpen: (open: boolean) => void;
 }
 
-type SidebarPath = '/' | '/history' | '/subscription';
+type SidebarPath = '/' | '/history';
 
 function DesktopSidebar({ isSidebarOpen, setIsSidebarOpen }: SidebarProps) {
   const navigate = useNavigate();
@@ -381,12 +381,6 @@ function DesktopSidebar({ isSidebarOpen, setIsSidebarOpen }: SidebarProps) {
                       <Settings className="mr-2 h-4 w-4" />
                       <span>Settings</span>
                     </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => sidebarNavigate('/subscription')}
-                  >
-                    <Crown className="mr-2 h-4 w-4" />
-                    <span>Subscriptions</span>
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />

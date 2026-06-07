@@ -49,6 +49,7 @@ type CreativeViewProps = {
     meshId: string;
     parentMessageId: string | null;
   }) => void;
+  currentMessage?: Message;
 };
 
 export function CreativeView({
@@ -61,6 +62,7 @@ export function CreativeView({
   editMessage,
   changeRating,
   upscaleMessage,
+  currentMessage,
 }: CreativeViewProps) {
   const isMobile = useIsMobile();
   const panelRef = useRef<ImperativePanelHandle>(null);
@@ -202,7 +204,7 @@ export function CreativeView({
               minSize={PANEL_SIZES.PREVIEW.MIN}
               className="overflow-hidden"
             >
-              <CreativePreviewSection isLoading={isLoading} />
+              <CreativePreviewSection isLoading={isLoading} message={currentMessage} />
             </Panel>
           </PanelGroup>
         )}

@@ -16,7 +16,6 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import Tree from '@shared/Tree';
 import { useIsMutating } from '@tanstack/react-query';
 import { useRequestCancellation } from '@/hooks/useRequestCancellation';
-import posthog from 'posthog-js';
 
 export function CreativeEditorView() {
   const { conversation, updateConversationAsync } = useConversation();
@@ -63,13 +62,22 @@ export function CreativeEditorView() {
 
   const { data: messages = [] } = useMessagesQuery();
 
+  console.log('[CreativeEditorView] messages count:', messages.length);
+  console.log('[CreativeEditorView] conversation.id:', conversation.id);
+  console.log('[CreativeEditorView] conversation.type:', conversation.type);
+  console.log('[CreativeEditorView] conversation.current_message_leaf_id:', conversation.current_message_leaf_id);
+
   const lastMessage = useMemo(() => {
     if (conversation.current_message_leaf_id) {
-      return messages.find(
+      const found = messages.find(
         (msg) => msg.id === conversation.current_message_leaf_id,
       );
+      console.log('[CreativeEditorView] found message by current_message_leaf_id:', !!found);
+      return found;
     }
-    return messages[messages.length - 1];
+    const last = messages[messages.length - 1];
+    console.log('[CreativeEditorView] last message from array:', !!last);
+    return last;
   }, [messages, conversation.current_message_leaf_id]);
 
   const messageTree = useMemo(() => {
@@ -77,8 +85,17 @@ export function CreativeEditorView() {
   }, [messages]);
 
   const currentMessageBranch = useMemo(() => {
-    return messageTree.getPath(lastMessage?.id ?? '');
-  }, [lastMessage, messageTree]);
+    const branch = messageTree.getPath(lastMessage?.id ?? '');
+    console.log('[CreativeEditorView] currentMessageBranch count:', branch.length);
+    
+    // 如果分支为空或不完整（少于总消息数的一半），回退到显示所有消息
+    if (branch.length === 0 || (messages.length > 0 && branch.length < messages.length)) {
+      console.log('[CreativeEditorView] Falling back to all messages due to incomplete branch');
+      return Array.from(messageTree.allNodes.values());
+    }
+    
+    return branch;
+  }, [lastMessage, messageTree, messages]);
 
   // Track the current request's user message ID for cancellation
   useEffect(() => {
@@ -117,17 +134,9 @@ export function CreativeEditorView() {
 
   const sendMessage = useCallback(
     (content: Content) => {
-      posthog.capture('message_sent', {
-        type: 'creative',
-        model_name: conversation.settings?.model ?? 'none',
-        text: content.text ?? '',
-        image_count: content.images?.length ?? 0,
-        mesh_count: content.mesh ? 1 : 0,
-        conversation_id: conversation.id,
-      });
       sendMessageMutation(content);
     },
-    [sendMessageMutation, conversation.id, conversation.settings?.model],
+    [sendMessageMutation],
   );
 
   return (

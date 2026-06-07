@@ -139,8 +139,9 @@ export function isMeasurementParameter(param: Parameter): boolean {
   ];
 
   // Check if parameter name or displayName contains measurement terms
-  const nameToCheck = param.name.toLowerCase();
-  const displayNameToCheck = param.displayName.toLowerCase();
+  // Handle undefined values
+  const nameToCheck = (param.name || '').toLowerCase();
+  const displayNameToCheck = (param.displayName || '').toLowerCase();
 
   // Only consider number type parameters
   if (param.type !== 'number' && param.type !== undefined) {

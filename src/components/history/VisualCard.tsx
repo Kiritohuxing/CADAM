@@ -54,43 +54,56 @@ interface VisualCardProps {
 }
 
 function ThreePreview({ geometry }: { geometry: BufferGeometry }) {
+  const isMountedRef = useRef(false);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   return (
-    <Canvas className="h-full w-full">
-      <color attach="background" args={['#1a1a1a']} />
-      <PerspectiveCamera
-        makeDefault
-        position={[-100, 100, 100]}
-        fov={45}
-        near={0.1}
-        far={1000}
-        zoom={0.4}
-      />
-      <Stage environment={null} intensity={0.6} position={[0, 0, 0]}>
-        <Environment files={`${import.meta.env.BASE_URL}/city.hdr`} />
-        <ambientLight intensity={0.8} />
-        <directionalLight position={[5, 5, 5]} intensity={1.2} />
-        <directionalLight position={[-5, 5, 5]} intensity={0.2} />
-        <mesh
-          geometry={geometry}
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[0, 0, 0]}
-        >
-          <meshStandardMaterial
-            color="#00A6FF"
-            metalness={0.6}
-            roughness={0.3}
-            envMapIntensity={0.3}
+    <>
+      {isMountedRef.current && (
+        <Canvas className="h-full w-full">
+          <color attach="background" args={['#1a1a1a']} />
+          <PerspectiveCamera
+            makeDefault
+            position={[-100, 100, 100]}
+            fov={45}
+            near={0.1}
+            far={1000}
+            zoom={0.4}
           />
-        </mesh>
-      </Stage>
-      <OrbitControls
-        makeDefault
-        enableDamping={false}
-        enableZoom={false}
-        autoRotate={true}
-        autoRotateSpeed={1}
-      />
-    </Canvas>
+          <Stage environment={null} intensity={0.6} position={[0, 0, 0]}>
+            <Environment files={`${import.meta.env.BASE_URL}/city.hdr`} />
+            <ambientLight intensity={0.8} />
+            <directionalLight position={[5, 5, 5]} intensity={1.2} />
+            <directionalLight position={[-5, 5, 5]} intensity={0.2} />
+            <mesh
+              geometry={geometry}
+              rotation={[-Math.PI / 2, 0, 0]}
+              position={[0, 0, 0]}
+            >
+              <meshStandardMaterial
+                color="#00A6FF"
+                metalness={0.6}
+                roughness={0.3}
+                envMapIntensity={0.3}
+              />
+            </mesh>
+          </Stage>
+          <OrbitControls
+            makeDefault
+            enableDamping={false}
+            enableZoom={false}
+            autoRotate={true}
+            autoRotateSpeed={1}
+          />
+        </Canvas>
+      )}
+    </>
   );
 }
 
@@ -104,7 +117,7 @@ export function VisualCard({
   const [geometry, setGeometry] = useState<BufferGeometry | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
-  const { compileScad, isCompiling, output, isError } = useOpenSCAD();
+  const { compileScad, isCompiling, output, isError } = useOpenSCAD('parametric');
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -152,14 +165,19 @@ export function VisualCard({
           typeof messageWithArtifact.content === 'object' &&
           'artifact' in messageWithArtifact.content
         ) {
-          const artifact = messageWithArtifact.content.artifact;
-          if (
-            artifact &&
-            typeof artifact === 'object' &&
-            'code' in artifact &&
-            typeof artifact.code === 'string'
-          ) {
-            setArtifactCode(artifact.code);
+          const artifact = messageWithArtifact.content.artifact as Record<string, any>;
+          if (artifact && typeof artifact === 'object') {
+            if (artifact.components && Array.isArray(artifact.components)) {
+              const code = artifact.components
+                .map((comp: any) => comp.openscad || comp.code || '')
+                .filter(Boolean)
+                .join('\n');
+              if (code) {
+                setArtifactCode(code);
+              }
+            } else if ('code' in artifact && typeof artifact.code === 'string') {
+              setArtifactCode(artifact.code);
+            }
           }
         }
       } catch (error) {
@@ -186,7 +204,6 @@ export function VisualCard({
           if (isMounted) {
             const loader = new STLLoader();
             const geom = loader.parse(buffer);
-            geom.center();
             geom.computeVertexNormals();
             setGeometry(geom);
           }

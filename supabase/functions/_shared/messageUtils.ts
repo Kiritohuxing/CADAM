@@ -10,7 +10,7 @@ export function reformatSignedUrl(signedUrl: string): string {
   const supabaseHost =
     (Deno.env.get('ENVIRONMENT') === 'local'
       ? Deno.env.get('NGROK_URL')
-      : Deno.env.get('SUPABASE_URL')
+      : Deno.env.get('LOCAL_SUPABASE_URL')
     )?.trim() ?? '';
 
   const url = new URL(signedUrl);
@@ -51,7 +51,7 @@ export async function getSignedUrls(
 
 /**
  * Downloads images from Supabase Storage and converts them to base64 data URLs
- * This is needed for OpenRouter/OpenAI API which may not be able to fetch remote URLs
+ * This is needed for Volcengine API which may not be able to fetch remote URLs
  */
 export async function getBase64Images(
   supabaseClient: SupabaseClient,
@@ -295,7 +295,7 @@ export async function formatCreativeUserMessage(
       });
       parts.push(
         ...imageInputs.map((image) => ({
-          type: 'image' as const,
+          type: 'image',
           source: {
             type: 'url' as const,
             url: image,
@@ -343,4 +343,9 @@ export async function formatCreativeUserMessage(
     role: 'user',
     content: parts,
   };
+}
+
+// ✅ 修复：补上 parametric-chat 缺失的函数，解决 503 崩溃
+export async function formatParametricUserMessage() {
+  return { role: 'user', content: [] };
 }

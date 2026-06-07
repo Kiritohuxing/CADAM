@@ -68,7 +68,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 interface TextAreaChatProps {
   type: 'parametric' | 'creative';
-  onSubmit: (content: Content) => void;
+  onSubmit?: (content: Content) => void;
   onFocus?: () => void;
   isLoading?: boolean;
   placeholder?: string;
@@ -765,7 +765,7 @@ function TextAreaChat({
         ...(meshFilename && { meshFilename }),
       };
     }
-    onSubmit(content);
+    onSubmit?.(content);
     setInput('');
     setImages([]);
     setMesh(null);

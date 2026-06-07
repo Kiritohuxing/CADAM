@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import posthog from 'posthog-js';
-import { AuthContext, type BillingStatus, getLevel } from './AuthContext';
+import { AuthContext } from './AuthContext';
 
 const ensurePermission = async () => {
   if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -25,7 +24,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
-  const posthogSent = useRef(false);
   const queryClient = useQueryClient();
 
   // Initialize auth state and set up session listener
@@ -58,20 +56,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, [navigate]);
-
-  // Poll adam-billing for subscription state + token balances. 30s cadence
-  // matches the prior user_extradata poll — adam-billing is the source of
-  // truth; no local realtime channel anymore.
-  const { data: billing, isLoading: isBillingLoading } = useQuery({
-    queryKey: ['billing', 'status'],
-    enabled: !!user,
-    refetchInterval: 30000,
-    queryFn: async (): Promise<BillingStatus> => {
-      const { data, error } = await supabase.functions.invoke('billing-status');
-      if (error) throw error;
-      return data as BillingStatus;
-    },
-  });
 
   // Fetch user's profile data directly (avoiding circular dependency)
   const { data: profile, isLoading: isProfileLoading } = useQuery({
@@ -114,7 +98,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               queryKey: ['meshData', payload.id],
             });
             queryClient.invalidateQueries({ queryKey: ['mesh', payload.id] });
-            queryClient.invalidateQueries({ queryKey: ['billing', 'status'] });
 
             if (
               payload.status === 'success' &&
@@ -153,24 +136,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       supabase.removeChannel(channel);
     };
   }, [user, queryClient, navigate, profile?.notifications_enabled]);
-
-  // Track user in PostHog once we have all their data
-  useEffect(() => {
-    if (
-      user &&
-      !posthogSent.current &&
-      !isBillingLoading &&
-      !isProfileLoading
-    ) {
-      posthog.identify(user.id, {
-        email: user.email,
-        full_name: profile?.full_name,
-        subscription: getLevel(billing),
-        has_trialed: billing?.user.hasTrialed ?? false,
-      });
-      posthogSent.current = true;
-    }
-  }, [user, isBillingLoading, billing, profile, isProfileLoading]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
@@ -226,9 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         session,
         user,
-        billing: billing ?? null,
-        isLoading:
-          isLoading || (!!user && (isBillingLoading || isProfileLoading)),
+        isLoading: isLoading || (!!user && isProfileLoading),
         signIn,
         signUp,
         signInWithMagicLink,

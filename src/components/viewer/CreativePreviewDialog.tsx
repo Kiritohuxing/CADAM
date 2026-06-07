@@ -6,8 +6,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { MeshPreview } from './MeshPreview';
 import { ImageGallery } from './ImageGallery';
+import { OpenSCADPreview } from './OpenSCADViewer';
 
 export function CreativePreviewDialog() {
   const { currentMessage, setCurrentMessage } = useCurrentMessage();
@@ -30,9 +30,12 @@ export function CreativePreviewDialog() {
           {currentMessage?.content.images && (
             <ImageGallery imageIds={currentMessage.content.images} />
           )}
-          {currentMessage?.content.mesh && (
+          {currentMessage?.content.openscadCode && (
             <div className="aspect-square w-full">
-              <MeshPreview meshId={currentMessage.content.mesh.id} />
+              <OpenSCADPreview
+                scadCode={currentMessage.content.openscadCode}
+                color="#F8248A"
+              />
             </div>
           )}
         </div>

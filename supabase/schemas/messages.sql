@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS "public"."messages" (
     "content" "jsonb" NOT NULL,
     "rating" smallint DEFAULT '0'::smallint NOT NULL,
     "parent_message_id" "uuid",
+    "model" "text",
+    "metadata" "jsonb",
     CONSTRAINT "messages_role_check" CHECK (("role" = ANY (ARRAY['user'::"text", 'assistant'::"text"])))
 );
 

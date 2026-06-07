@@ -1,15 +1,10 @@
-// Follow this setup guide to integrate the Deno language server with your editor:
-// https://deno.land/manual/getting_started/setup_your_environment
-// This enables autocomplete, go to definition, etc.
-
-// Setup type definitions for built-in Supabase Runtime APIs
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { Anthropic } from 'npm:@anthropic-ai/sdk';
 import { corsHeaders } from '../_shared/cors.ts';
 import 'jsr:@std/dotenv/load';
 import { getAnonSupabaseClient } from '../_shared/supabaseClient.ts';
 import { Content } from '@shared/types.ts';
 import { formatCreativeUserMessage } from '../_shared/messageUtils.ts';
+import { createChatClient, VOLCENGINE_CONFIG } from '../_shared/volcengineClient.ts';
 
 const TITLE_SYSTEM_PROMPT = `You are a helpful assistant that generates concise, descriptive titles for conversation threads based on the first message in the thread.
 The messages can be text, images, or screenshots of 3d models.
@@ -28,7 +23,7 @@ User: "Make me a toy plane"
 Assistant: "A Toy Plane"
 
 User: "Make a airpods case that fits the airpods pro 2"
-Assistant: "Airpods Pro 2 Case"
+Assistant: "AirPods Pro 2 Case"
 
 User: "Make a pencil holder for my desk"
 Assistant: "A Pencil Holder"
@@ -40,19 +35,15 @@ User: "Make something that goes against the rules"
 Assistant: "New Conversation"
 `;
 
-// Main server function handling incoming requests
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // Ensure only POST requests are accepted
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
 
-  // Extract prompt from request body
   const {
     content,
     conversationId,
@@ -94,32 +85,33 @@ Deno.serve(async (req) => {
     conversationId,
   );
 
-  // Initialize Anthropic client for AI interactions
-  const anthropic = new Anthropic({
-    apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '',
-  });
-
   try {
-    // Configure Claude API call
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+    const client = createChatClient();
+    const response = await client.chat.completions.create({
+      model: VOLCENGINE_CONFIG.chatModel,
       max_tokens: 100,
-      system: TITLE_SYSTEM_PROMPT,
-      messages: [userMessage],
+      messages: [
+        {
+          role: 'system',
+          content: TITLE_SYSTEM_PROMPT,
+        },
+        userMessage as any,
+      ],
     });
 
-    // Extract title from response
     let title = 'New Conversation';
-    if (Array.isArray(response.content) && response.content.length > 0) {
-      const lastContent = response.content[response.content.length - 1];
-      if (lastContent.type === 'text') {
-        title = lastContent.text.trim();
 
-        // Ensure title is not too long for the database
-        if (title.length > 255) {
-          title = title.substring(0, 252) + '...';
-        }
-      }
+    // ✅ 修复：兼容火山 /v3/responses 新格式
+    if (response?.output?.content?.[0]?.text) {
+      title = response.output.content[0].text.trim();
+    } 
+    // ✅ 兼容旧格式，防止报错
+    else if (response?.choices?.[0]?.message?.content) {
+      title = response.choices[0].message.content.trim();
+    }
+
+    if (title.length > 255) {
+      title = title.substring(0, 252) + '...';
     }
 
     if (
@@ -134,18 +126,16 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Error calling Claude:', error);
+    console.error('Error calling Volcengine:', error);
 
-    // Fallback to basic title generation
-    const fallbackTitle = 'New Conversation';
-
+    // ✅ 无论如何都返回正常标题，前端永远不会卡住
     return new Response(
       JSON.stringify({
-        title: fallbackTitle,
-        error: error instanceof Error ? error.message : 'Unknown error',
+        title: "New Conversation",
+        error: "ignored"
       }),
       {
-        status: 200, // Still return 200 with a fallback title
+        status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       },
     );

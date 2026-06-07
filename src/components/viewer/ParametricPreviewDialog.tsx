@@ -15,13 +15,80 @@ import {
   SheetTitle,
   SheetHeader,
 } from '@/components/ui/sheet';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { ParameterSheetContent } from '@/components/parameter/ParameterSheetContent';
 import { Message, Parameter } from '@shared/types';
 import * as SheetPrimitive from '@radix-ui/react-dialog';
 import { cn } from '@/lib/utils';
 import { Separator } from '@/components/ui/separator';
 import { DxfExporter } from '@/utils/downloadUtils';
+
+// fix: 代码格式化函数 - 修复 OpenSCAD 解析问题
+function formatScadCode(code: string): string {
+  let formatted = code
+    .replace(/[\u4e00-\u9fa5]/g, '')         // 移除中文
+    .replace(/[。，、；：？！（）【】]/g, '')  // 移除中文标点
+    .trim();
+  
+  // 修复格式问题：在 { 后面添加换行
+  formatted = formatted.replace(/\{/g, '{\n');
+  
+  // 修复格式问题：在 } 前面添加换行（如果后面不是换行或文件结尾）
+  formatted = formatted.replace(/([^\n])\}/g, '$1\n}');
+  
+  // 修复格式问题：在 ; 后面添加换行（如果后面还有内容且不是换行）
+  formatted = formatted.replace(/;([^\n])/g, ';\n$1');
+  
+  // 确保每个语句后有换行
+  formatted = formatted.replace(/;\s*$/gm, ';\n');
+  
+  // 移除多余的连续换行（最多保留两个）
+  formatted = formatted.replace(/\n{3,}/g, '\n\n');
+  
+  return formatted;
+}
+
+// fix: 代码拼接校验函数
+function validateScadCode(code: string): { valid: boolean; error?: string } {
+  // 检查括号成对
+  let braceCount = 0;
+  for (const char of code) {
+    if (char === '{') braceCount++;
+    if (char === '}') braceCount--;
+  }
+  if (braceCount !== 0) {
+    return { valid: false, error: '括号不匹配' };
+  }
+  
+  // 检查连续三个换行
+  if (code.includes('\n\n\n')) {
+    return { valid: false, error: '存在连续三个换行' };
+  }
+  
+  // 简单检查未闭合注释（// 开头到行尾）
+  const lines = code.split('\n');
+  let inBlockComment = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (inBlockComment) {
+      const endIndex = line.indexOf('*/');
+      if (endIndex !== -1) {
+        inBlockComment = false;
+      }
+    } else {
+      const blockStart = line.indexOf('/*');
+      const blockEnd = line.indexOf('*/');
+      if (blockStart !== -1 && (blockEnd === -1 || blockEnd > blockStart)) {
+        inBlockComment = true;
+      }
+    }
+  }
+  if (inBlockComment) {
+    return { valid: false, error: '存在未闭合的块注释' };
+  }
+  
+  return { valid: true };
+}
 
 interface ParametricPreviewDialogProps {
   onSubmit: (message: Message | null, parameters: Parameter[]) => void;
@@ -102,6 +169,52 @@ export function ParametricPreviewDialog({
     return null;
   }
 
+  // fix: 计算拼接后的代码并校验
+  const { scadCode, validationError } = useMemo(() => {
+    if (!currentMessage.content.artifact) {
+      return { scadCode: null, validationError: null };
+    }
+    
+    const art = currentMessage.content.artifact;
+    
+    if (art.components?.length) {
+      // fix: 格式化并拼接所有组件代码
+      const codes = art.components
+        .map((c: any) => formatScadCode(c.openscad || c.code || ''))
+        .filter(Boolean);
+      const joinedCode = codes.join('\n\n');
+      
+      // fix: 校验拼接后的代码
+      const validation = validateScadCode(joinedCode);
+      if (!validation.valid) {
+        return { scadCode: null, validationError: validation.error };
+      }
+      
+      return { scadCode: joinedCode, validationError: null };
+    }
+    
+    if (art.code) {
+      const formattedCode = formatScadCode(art.code);
+      const validation = validateScadCode(formattedCode);
+      if (!validation.valid) {
+        return { scadCode: null, validationError: validation.error };
+      }
+      return { scadCode: formattedCode, validationError: null };
+    }
+    
+    const fallbackCode = (currentMessage as any).openscadCode || currentMessage.content?.openscadCode || null;
+    if (fallbackCode) {
+      const formattedCode = formatScadCode(fallbackCode);
+      const validation = validateScadCode(formattedCode);
+      if (!validation.valid) {
+        return { scadCode: null, validationError: validation.error };
+      }
+      return { scadCode: formattedCode, validationError: null };
+    }
+    
+    return { scadCode: null, validationError: null };
+  }, [currentMessage]);
+
   return (
     <>
       {currentMessage.content.images && (
@@ -159,15 +272,27 @@ export function ParametricPreviewDialog({
               <div className="mx-auto flex h-full max-w-xl flex-col items-center pb-6">
                 <div className="h-[40dvh] min-h-[40dvh] w-full px-4">
                   <div className="h-full w-full overflow-hidden rounded-xl">
-                    <OpenSCADPreview
-                      scadCode={currentMessage.content.artifact.code}
-                      color="#F8248A"
-                      onOutputChange={onOutputChange}
-                      onDxfExportChange={onDxfExportChange}
-                      fixError={fixError}
-                      isMobile={true}
-                      backgroundColor="#212121"
-                    />
+                    {/* fix: 显示校验错误 */}
+                    {validationError ? (
+                      <div className="h-full flex flex-col items-center justify-center bg-adam-bg-secondary-dark">
+                        <div className="text-adam-error font-medium mb-2">代码拼接异常</div>
+                        <div className="text-adam-neutral-400 text-sm">{validationError}</div>
+                      </div>
+                    ) : scadCode ? (
+                      <OpenSCADPreview
+                        scadCode={scadCode}
+                        color="#F8248A"
+                        onOutputChange={onOutputChange}
+                        onDxfExportChange={onDxfExportChange}
+                        fixError={fixError}
+                        isMobile={true}
+                        backgroundColor="#212121"
+                      />
+                    ) : (
+                      <div className="h-full flex items-center justify-center bg-adam-bg-secondary-dark">
+                        <div className="text-adam-neutral-400">无可用代码</div>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="w-full px-4">

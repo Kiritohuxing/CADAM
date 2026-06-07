@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Content, Message, Parameter } from '@shared/types';
+import { Content, Message } from '@shared/types';
 import { useIsMutating, useQueryClient } from '@tanstack/react-query';
-import { updateParameter } from '@/lib/utils';
 import ParametricView from './ParametricView';
 import { useConversation } from '@/contexts/ConversationContext';
 import OpenSCADError from '@/lib/OpenSCADError';
 import { useCurrentMessage } from '@/contexts/CurrentMessageContext';
-import {
-  useEditMessageMutation,
+import { useEditMessageMutation,
   useMessagesQuery,
   useRestoreMessageMutation,
   useRetryMessageMutation,
@@ -15,18 +13,15 @@ import {
   useUpdateMessageOptimisticMutation,
   useChangeRatingMutation,
 } from '@/services/messageService';
-import { useAuth } from '@/contexts/AuthContext';
 import Tree from '@shared/Tree';
 import { useRequestCancellation } from '@/hooks/useRequestCancellation';
-import posthog from 'posthog-js';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export function ParametricEditorView() {
   const { conversation, updateConversationAsync } = useConversation();
   const queryClient = useQueryClient();
   const { currentMessage, setCurrentMessage } = useCurrentMessage();
-  const { billing } = useAuth();
-  const totalTokens = billing?.tokens.total ?? 0;
+  const totalTokens = 0;
   const [currentOutput, setCurrentOutput] = useState<Blob | undefined>();
   // Brand fallback color used when OFF parsing fails and we drop back to
   // the single-color STL mesh.
@@ -69,13 +64,22 @@ export function ParametricEditorView() {
 
   const { data: messages = [] } = useMessagesQuery();
 
+  console.log('[ParametricEditorView] messages count:', messages.length);
+  console.log('[ParametricEditorView] conversation.id:', conversation.id);
+  console.log('[ParametricEditorView] conversation.type:', conversation.type);
+  console.log('[ParametricEditorView] conversation.current_message_leaf_id:', conversation.current_message_leaf_id);
+
   const lastMessage = useMemo(() => {
     if (conversation.current_message_leaf_id) {
-      return messages.find(
+      const found = messages.find(
         (msg) => msg.id === conversation.current_message_leaf_id,
       );
+      console.log('[ParametricEditorView] found message by current_message_leaf_id:', !!found);
+      return found;
     }
-    return messages[messages.length - 1];
+    const last = messages[messages.length - 1];
+    console.log('[ParametricEditorView] last message from array:', !!last);
+    return last;
   }, [messages, conversation.current_message_leaf_id]);
 
   const messageTree = useMemo(() => {
@@ -83,8 +87,17 @@ export function ParametricEditorView() {
   }, [messages]);
 
   const currentMessageBranch = useMemo(() => {
-    return messageTree.getPath(lastMessage?.id ?? '');
-  }, [lastMessage, messageTree]);
+    const branch = messageTree.getPath(lastMessage?.id ?? '');
+    console.log('[ParametricEditorView] currentMessageBranch count:', branch.length);
+    
+    // 如果分支为空或不完整（少于总消息数的一半），回退到显示所有消息
+    if (branch.length === 0 || (messages.length > 0 && branch.length < messages.length)) {
+      console.log('[ParametricEditorView] Falling back to all messages due to incomplete branch');
+      return Array.from(messageTree.allNodes.values());
+    }
+    
+    return branch;
+  }, [lastMessage, messageTree, messages]);
 
   // Track the last user message to get the messageId for cancellation
   useEffect(() => {
@@ -116,66 +129,11 @@ export function ParametricEditorView() {
     }
   }, [lastMessage, setCurrentMessage, isTabletOrMobile]);
 
-  const changeParameters = useCallback(
-    (message: Message | null, updatedParameters: Parameter[]) => {
-      if (!message) return;
-
-      let newCode = message.content.artifact?.code ?? '';
-      updatedParameters.forEach((param) => {
-        if (param.name.length > 0) {
-          newCode = updateParameter(newCode, param);
-        }
-      });
-
-      const newContent: Content = {
-        text: message.content.text ?? '',
-        model: message.content.model ?? 'fast',
-        artifact: {
-          title: message.content.artifact?.title ?? '',
-          version: message.content.artifact?.version ?? '',
-          code: newCode,
-          parameters: updatedParameters,
-          suggestions: message.content.artifact?.suggestions ?? [],
-        },
-      };
-
-      updateMessageOptimistic(
-        {
-          message: { ...message, content: newContent },
-        },
-        {
-          onError(_error, _variables, context) {
-            if (context?.oldMessages) {
-              const oldMessage = context.oldMessages.find(
-                (msg) => msg.id === message?.id,
-              );
-              queryClient.setQueryData(
-                ['messages', conversation.id],
-                context.oldMessages,
-              );
-              setCurrentMessage(oldMessage ?? null);
-            }
-          },
-        },
-      );
-      setCurrentMessage({ ...message, content: newContent });
-    },
-    [updateMessageOptimistic, queryClient, conversation.id, setCurrentMessage],
-  );
-
   const sendMessage = useCallback(
     (content: Content) => {
-      posthog.capture('message_sent', {
-        type: 'parametric',
-        model_name: conversation.settings?.model ?? 'none',
-        text: content.text ?? '',
-        image_count: content.images?.length ?? 0,
-        mesh_count: content.mesh ? 1 : 0,
-        conversation_id: conversation.id,
-      });
       sendMessageMutation(content);
     },
-    [sendMessageMutation, conversation.id, conversation.settings?.model],
+    [sendMessageMutation],
   );
 
   const fixError = useCallback(
@@ -200,12 +158,12 @@ export function ParametricEditorView() {
       currentOutput={currentOutput}
       setCurrentOutput={setCurrentOutput}
       color={color}
-      changeParameters={changeParameters}
       stopGenerating={stopGenerating}
       fixError={currentMessage?.id === lastMessage?.id ? fixError : undefined}
       changeRating={changeRating}
       restoreMessage={restoreMessage}
       limitReached={totalTokens <= 0}
+      currentMessage={lastMessage}
     />
   );
 }

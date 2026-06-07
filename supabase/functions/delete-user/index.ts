@@ -5,11 +5,7 @@ import {
   getServiceRoleSupabaseClient,
   SupabaseClient,
 } from '../_shared/supabaseClient.ts';
-import { billing, BillingClientError } from '../_shared/billingClient.ts';
-import { initSentry, logApiError, logError } from '../_shared/sentry.ts';
-
-// Initialize Sentry for error logging
-initSentry();
+import { logApiError, logError } from '../_shared/sentry.ts';
 
 type CancellationFeedback =
   | 'customer_service'
@@ -17,15 +13,14 @@ type CancellationFeedback =
   | 'missing_features'
   | 'other'
   | 'switched_service'
-  | 'too_complex'
   | 'too_expensive'
+  | 'too_complex'
   | 'unused';
 
 const supabaseClient = getServiceRoleSupabaseClient();
 
 /**
  * Deletes the authenticated user account.
- * - Cancels any active subscription via adam-billing (no-op if none)
  * - Removes storage items in the background
  * - Deletes the auth user via service role
  */
@@ -44,6 +39,8 @@ Deno.serve(async (req) => {
   const { reason }: { reason?: CancellationFeedback } = await req
     .json()
     .catch(() => ({}));
+
+  console.log('Delete user reason:', reason);
 
   const authHeader = req.headers.get('Authorization');
   const token = authHeader?.replace('Bearer ', '');
@@ -64,25 +61,6 @@ Deno.serve(async (req) => {
 
   const userId = userData.user.id;
   const email = userData.user.email;
-
-  try {
-    await billing.cancelSubscription(email, { feedback: reason });
-  } catch (err) {
-    const status = err instanceof BillingClientError ? err.status : 502;
-    logApiError(err, {
-      functionName: 'delete-user',
-      apiName: 'adam-billing cancel-subscription',
-      statusCode: status,
-      userId,
-    });
-    return new Response(
-      JSON.stringify({ error: 'Failed to cancel subscription' }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      },
-    );
-  }
 
   // Kick off storage deletion in the background to avoid blocking the response
   EdgeRuntime.waitUntil(deleteUserStorageItems(userId));
@@ -131,47 +109,36 @@ async function deleteUserStorageItems(userIdToDelete: string) {
         functionName: 'delete-user',
         statusCode: 500,
         userId: userIdToDelete,
-        additionalContext: { step: 'delete_storage', bucket },
+        additionalContext: { step: 'storage_delete', bucket },
       });
     }
   }
 }
 
-// Helper: recursively list all file paths under a folder for a bucket
+// Helper: list all paths in a storage bucket for a given user
 async function listAllPaths(
-  client: SupabaseClient,
+  supabase: SupabaseClient,
   bucket: string,
-  folder: string,
+  userId: string,
 ): Promise<string[]> {
-  const paths: string[] = [];
-  let offset = 0;
-  const limit = 1000;
+  const allPaths: string[] = [];
+  let pageToken: string | undefined;
 
-  while (true) {
-    const { data, error } = await client.storage.from(bucket).list(folder, {
-      limit,
-      offset,
-      sortBy: { column: 'name', order: 'asc' },
-    });
-    if (error) {
-      throw error;
-    }
-    if (!data || data.length === 0) break;
+  do {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .list(userId, {
+        limit: 1000,
+        search: pageToken ? undefined : undefined,
+      });
 
-    for (const item of data) {
-      const currentPath = folder ? `${folder}/${item.name}` : item.name;
-      // If item has an id, it's a file. If not, it's a folder
-      if ((item as unknown as { id?: string }).id) {
-        paths.push(currentPath);
-      } else {
-        const nested = await listAllPaths(client, bucket, currentPath);
-        paths.push(...nested);
-      }
+    if (error) throw error;
+    if (data) {
+      allPaths.push(...data.map((item) => `${userId}/${item.name}`));
     }
 
-    if (data.length < limit) break;
-    offset += limit;
-  }
+    pageToken = undefined;
+  } while (pageToken);
 
-  return paths;
+  return allPaths;
 }

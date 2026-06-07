@@ -1,16 +1,11 @@
-// Follow this setup guide to integrate the Deno language server with your editor:
-// https://deno.land/manual/getting_started/setup_your_environment
-// This enables autocomplete, go to definition, etc.
-
-// Setup type definitions for built-in Supabase Runtime APIs
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { Anthropic } from 'npm:@anthropic-ai/sdk';
 import { corsHeaders } from '../_shared/cors.ts';
 import 'jsr:@std/dotenv/load';
 import { getAnonSupabaseClient } from '../_shared/supabaseClient.ts';
+import { createChatClient, VOLCENGINE_CONFIG } from '../_shared/volcengineClient.ts';
 
 const PROMPT_SYSTEM_PROMPT = `You are a helpful assistant that generates creative prompts for organic 3D forms and artistic objects. Your prompts should be:
-1. Focus on organic shapes, characters, figurines, and artistic forms
+1. Focus on organic shapes, characters, figurines, and artistic objects
 2. Be short and creative
 3. Avoid technical dimensions - focus on form and aesthetics
 4. Think sculptures, characters, animals, artistic objects
@@ -55,14 +50,11 @@ User: "Generate a parametric modeling prompt."
 Assistant: "a cable management clip for 8mm cables"
 `;
 
-// Main server function handling incoming requests
 Deno.serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  // Ensure only POST requests are accepted
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 });
   }
@@ -96,7 +88,6 @@ Deno.serve(async (req) => {
     );
   }
 
-  // Parse request body to get existing text and type if provided
   const {
     existingText,
     type,
@@ -104,17 +95,11 @@ Deno.serve(async (req) => {
     .json()
     .catch(() => ({}));
 
-  // Initialize Anthropic client for AI interactions
-  const anthropic = new Anthropic({
-    apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '',
-  });
-
   try {
     let systemPrompt: string;
     let userPrompt: string;
 
     if (existingText && existingText.length > 0) {
-      // Augment existing text
       if (type === 'parametric') {
         systemPrompt = `You are a technical writing assistant specialized in enhancing prompts for dimensional household objects and functional parts. When given an existing prompt, you should:
 
@@ -134,7 +119,6 @@ ${JSON.stringify(existingText)}
 
 Return only the enhanced prompt text, no introductory phrases.`;
       } else {
-        // Creative mode augmentation
         systemPrompt = `You are a creative writing assistant specialized in enhancing prompts for 3D game assets and 3D printable characters. When given an existing prompt, you should:
 
 1. Expand with more vivid artistic and organic details
@@ -154,7 +138,6 @@ ${JSON.stringify(existingText)}
 Return only the enhanced prompt text, no introductory phrases.`;
       }
     } else {
-      // Generate new prompt
       if (type === 'parametric') {
         systemPrompt = PARAMETRIC_SYSTEM_PROMPT;
         userPrompt = 'Generate a parametric modeling prompt.';
@@ -164,12 +147,15 @@ Return only the enhanced prompt text, no introductory phrases.`;
       }
     }
 
-    // Configure Claude API call
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+    const client = createChatClient();
+    const response = await client.chat.completions.create({
+      model: VOLCENGINE_CONFIG.chatModel,
       max_tokens: 200,
-      system: systemPrompt,
       messages: [
+        {
+          role: 'system',
+          content: systemPrompt,
+        },
         {
           role: 'user',
           content: userPrompt,
@@ -177,13 +163,9 @@ Return only the enhanced prompt text, no introductory phrases.`;
       ],
     });
 
-    // Extract prompt from response
     let prompt = '';
-    if (Array.isArray(response.content) && response.content.length > 0) {
-      const lastContent = response.content[response.content.length - 1];
-      if (lastContent.type === 'text') {
-        prompt = lastContent.text.trim();
-      }
+    if (response.choices[0]?.message?.content) {
+      prompt = response.choices[0].message.content.trim();
     }
 
     return new Response(JSON.stringify({ prompt }), {
@@ -191,7 +173,7 @@ Return only the enhanced prompt text, no introductory phrases.`;
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Error calling Claude:', error);
+    console.error('Error calling Volcengine:', error);
 
     return new Response(
       JSON.stringify({

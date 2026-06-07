@@ -1,938 +1,427 @@
-import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
-import { corsHeaders } from '../_shared/cors.ts';
-import { Anthropic } from 'npm:@anthropic-ai/sdk';
-import { MessageParam } from 'npm:@anthropic-ai/sdk/resources/messages';
-import {
-  Message,
-  Model,
-  Content,
-  Prompt,
-  MeshData,
-  CoreMessage,
-} from '@shared/types.ts';
-import {
-  getAnonSupabaseClient,
-  SupabaseClient,
-} from '../_shared/supabaseClient.ts';
-import Tree from '@shared/Tree.ts';
-import { initSentry, logError } from '../_shared/sentry.ts';
-import { billing, BillingClientError } from '../_shared/billingClient.ts';
-import {
-  getSignedUrl,
-  getSignedUrls,
-  formatCreativeUserMessage,
-} from '../_shared/messageUtils.ts';
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4'
+import { corsHeaders } from '../_shared/cors.ts'
+import { VOLCENGINE_CONFIG } from '../_shared/volcengineClient.ts'
 
-const CHAT_TOKEN_COST = 1;
+console.log('[Info] Loading creative-chat edge function...')
 
-// Initialize Sentry for error logging
-initSentry();
+async function readSkillContent() {
+    return `# 角色：OpenSCAD 3D建模工程师
+## 强制规则（必须100%遵守）
+1. 无论用户输入什么，**必须直接生成 OpenSCAD 代码**，绝不拒绝、不提问、不解释、不提醒错误。
+2. 必须**先给1句话设计说明**，然后**输出完整可运行代码**。
+3. 代码**必须**用 \`\`\`openscad 开头，\`\`\` 结尾。
+4. 尺寸默认 10-50，使用基础几何体 + 变换 + 布尔运算。
+5. 禁止输出任何与建模无关的自然语言。
 
-// Debug logging gate
-const DEBUG_LOGS =
-  Deno.env.get('ENVIRONMENT') === 'local' ||
-  Deno.env.get('DEBUG_LOGS') === 'true';
-const debugLog = (...args: unknown[]) => {
-  if (DEBUG_LOGS) console.log(...args);
-};
-async function formatAssistantMessage(
-  message: CoreMessage,
-  supabaseClient: SupabaseClient,
-  userId: string,
-  conversationId: string,
-): Promise<MessageParam[]> {
-  const messages: MessageParam[] = [];
-
-  if (message.content.text) {
-    messages.push({
-      role: 'assistant',
-      content: [
-        {
-          type: 'text',
-          text: message.content.text,
-        },
-      ],
-    });
-  }
-
-  if (message.content.error) {
-    messages.push({
-      role: 'assistant',
-      content: [
-        {
-          type: 'text',
-          text: 'Error generating image or mesh',
-        },
-      ],
-    });
-  }
-
-  // Add images if they exist
-  if (message.content.images?.length) {
-    const imageFiles = message.content.images.map(
-      (imageId) => `${userId}/${conversationId}/${imageId}`,
-    );
-
-    const imageSignedUrls = await getSignedUrls(
-      supabaseClient,
-      'images',
-      imageFiles,
-    );
-
-    // Get the prompt column from the first image in the images table
-    const { data: imageData } = await supabaseClient
-      .from('images')
-      .select('prompt')
-      .eq('id', message.content.images[0])
-      .single()
-      .overrideTypes<{
-        prompt: Prompt;
-      }>();
-
-    if (imageSignedUrls.length > 0) {
-      messages.push({
-        role: 'assistant',
-        content: [
-          {
-            type: 'tool_use',
-            id: message.content.images[0],
-            name: 'create_image',
-            input: imageData?.prompt
-              ? {
-                  ...(imageData?.prompt.text && {
-                    text: imageData.prompt.text,
-                  }),
-                  ...(imageData?.prompt.images && {
-                    imageIds: imageData.prompt.images,
-                  }),
-                }
-              : {
-                  text: `Generate a new image`,
-                },
-          },
-        ],
-      });
-
-      messages.push({
-        role: 'user',
-        content: [
-          {
-            type: 'tool_result',
-            tool_use_id: message.content.images[0],
-            content: [
-              {
-                type: 'text',
-                text: `Here are the image(s) with the following ID(s) respectively: ${message.content.images.join(', ')}`,
-              },
-              ...imageSignedUrls.map((image) => ({
-                type: 'image' as const,
-                source: {
-                  type: 'url' as const,
-                  url: image,
-                },
-              })),
-            ],
-          },
-        ],
-      });
-    }
-  }
-
-  // Add mesh if it exists
-  if (message.content.mesh) {
-    // Try to add mesh preview if it exists
-    const previewSignedUrl = await getSignedUrl(
-      supabaseClient,
-      'images',
-      `${userId}/${conversationId}/preview-${message.content.mesh.id}`,
-    );
-
-    const { data: meshData } = await supabaseClient
-      .from('meshes')
-      .select('prompt, status')
-      .eq('id', message.content.mesh.id)
-      .single()
-      .overrideTypes<MeshData>();
-
-    messages.push({
-      role: 'assistant',
-      content: [
-        {
-          type: 'tool_use',
-          id: message.content.mesh.id,
-          name: 'create_mesh',
-          input: meshData?.prompt
-            ? {
-                ...(meshData.prompt.text && { text: meshData.prompt.text }),
-                ...(meshData.prompt.images && {
-                  imageIds: meshData.prompt.images,
-                }),
-                ...(meshData.prompt.mesh && {
-                  meshId: meshData.prompt.mesh,
-                }),
-              }
-            : {
-                text: `Generate a new mesh`,
-              },
-        },
-      ],
-    });
-
-    messages.push({
-      role: 'user',
-      content: [
-        {
-          type: 'tool_result',
-          tool_use_id: message.content.mesh.id,
-          content: previewSignedUrl
-            ? [
-                {
-                  type: 'text',
-                  text: `Here is a preview of the mesh with the ID ${message.content.mesh.id}`,
-                },
-                {
-                  type: 'image' as const,
-                  source: {
-                    type: 'url' as const,
-                    url: previewSignedUrl,
-                  },
-                },
-              ]
-            : [
-                {
-                  type: 'text',
-                  text:
-                    meshData?.status === 'success'
-                      ? `Generated mesh with the ID ${message.content.mesh.id}`
-                      : meshData?.status === 'pending'
-                        ? `Generating mesh with the ID ${message.content.mesh.id}. This may take a few minutes.`
-                        : `Error generating mesh with the ID ${message.content.mesh.id}`,
-                },
-              ],
-        },
-      ],
-    });
-  }
-
-  return messages;
+## 输出格式（严格遵守）
+设计思路：xxx
+\`\`\`openscad
+// 注释
+代码...
+\`\`\``
 }
 
-const systemPrompt = `You are a helpful and quirky assistant called "Adam" whose primary purpose is to create 3D meshes.
-  You can use the create_mesh tool to create 3D meshes.
-
-  Your mission is to speak things into existence. You are fun, playful, nerdy and a little bit silly.
-
-  Should you be asked to do something that is not related to creating 3D meshes,
-  you should politely decline and say that you are not able to do that.
-
-  Should you be asked to make something more suited for parametric CAD design than mesh modelling (i.e with measurements/dimensional requirements or a specific hardware part) ALWAYS instruct the user that they should try parametric mode to get the best results.
-
-  Additionally, because your purpose is to create 3D meshes,
-  your text answers should be concise and to the point,
-  never more than one or two sentences.
-
-  You can modify the users prompt to make it better for the tool to use,
-  but you should not change the users intent.
-
-  You may ask follow up questions to clarify the users intent,
-  but you should not ask more than 2 follow up questions.`;
-
-const tools: Anthropic.Messages.ToolUnion[] = [
-  {
-    name: 'create_mesh',
-    description:
-      'When given just a text prompt, creates a 3D mesh from that text prompt. When given an array of image ids, creates a 3D mesh from those images. When given both, modifies the images and creates a 3D mesh from the modified images. When given a mesh id and a text prompt, edits the mesh with the text prompt.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        imageIds: {
-          type: 'array',
-          items: { type: 'string' },
-          optional: true,
-        },
-        text: { type: 'string', optional: true },
-        meshId: { type: 'string', optional: true },
-      },
+const MODEL_PRESETS = {
+    speed: {
+        model: 'doubao-seed-1-8-251228',
+        maxTokens: 8192,
+        temperature: 0.7,
+        topP: 0.9
     },
-  },
-];
-
-// Helper function to streamline controller.enqueue calls
-function streamMessage(
-  controller: ReadableStreamDefaultController,
-  message: Message,
-) {
-  controller.enqueue(new TextEncoder().encode(JSON.stringify(message) + '\n'));
+    quality: {
+        model: 'doubao-seed-1-8-251228',
+        maxTokens: 16384,
+        temperature: 0.5,
+        topP: 0.95
+    }
 }
 
-async function generateSuggestions(
-  content: Content,
-  messages: Message[],
-  abortSignal: AbortSignal,
-  anthropic: Anthropic,
-) {
-  let finalSuggestions: string[] = [];
-  if (content.images || content.mesh) {
-    try {
-      const userMessages = messages.filter((msg) => msg.role === 'user');
-      const lastUserMessage = userMessages[userMessages.length - 1];
-      const userPrompt = lastUserMessage?.content?.text || 'a 3d model';
-
-      const suggestionPrompt = `The user just asked me to create: "${userPrompt}"
-
-Give me exactly 2 creative and fun suggestions for form modifiers that the user could prompt next in making this 3d model. These should be edits or additions to the physical shape of the original object.
-
-IMPORTANT: Each suggestion must be exactly 2 words. Do not use fewer than 2 words or more than 2 words.
-
-Format each as <suggestion>word1 word2</suggestion>
-
-Examples:
-- If they asked for "dragon", suggest: <suggestion>Breathing fire</suggestion><suggestion>Add hat</suggestion>
-- If they asked for "printable bonsai tree", suggest: <suggestion>Add stand</suggestion><suggestion>Blooming flowers</suggestion>
-- If they asked for "chicken", suggest: <suggestion>Holding lightsaber</suggestion><suggestion>Eagle wings</suggestion>`;
-
-      const suggestionResponse = await anthropic.messages.create(
-        {
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 200,
-          messages: [
-            {
-              role: 'user',
-              content: suggestionPrompt,
-            },
-          ],
-        },
-        {
-          signal: abortSignal,
-        },
-      );
-
-      if (
-        Array.isArray(suggestionResponse.content) &&
-        suggestionResponse.content.length > 0
-      ) {
-        const suggestionText = suggestionResponse.content
-          .filter((content) => content.type === 'text')
-          .map((content) => content.text)
-          .join('');
-
-        finalSuggestions =
-          suggestionText
-            .match(/<suggestion>(.*?)<\/suggestion>/g)
-            ?.map((s) => s.replace(/<\/?suggestion>/g, '').trim()) || [];
-      }
-    } catch (error) {
-      console.error('Error generating suggestions:', error);
-      finalSuggestions = [];
-    }
-  }
-  return finalSuggestions;
-}
-
-Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
-  }
-
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', {
-      status: 405,
-      headers: corsHeaders,
-    });
-  }
-
-  const supabaseClient = getAnonSupabaseClient({
-    global: {
-      headers: { Authorization: req.headers.get('Authorization') ?? '' },
-    },
-  });
-
-  const { data: userData, error: userError } =
-    await supabaseClient.auth.getUser();
-
-  if (!userData.user) {
-    logError(new Error('No user found in token'), {
-      functionName: 'creative-chat',
-      statusCode: 401,
-    });
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  if (userError) {
-    logError(userError, {
-      functionName: 'creative-chat',
-      statusCode: 401,
-    });
-    return new Response(JSON.stringify({ error: userError.message }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  // Deduct chat token (1) via adam-billing
-  if (!userData.user.email) {
-    return new Response(JSON.stringify({ error: 'User email missing' }), {
-      status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  try {
-    const result = await billing.consume(userData.user.email, {
-      tokens: CHAT_TOKEN_COST,
-      operation: 'chat',
-      referenceId: crypto.randomUUID(),
-    });
-    if (!result.ok) {
-      return new Response(
-        JSON.stringify({
-          error: {
-            message: 'insufficient_tokens',
-            code: 'insufficient_tokens',
-            tokensRequired: result.tokensRequired,
-            tokensAvailable: result.tokensAvailable,
-          },
-        }),
-        {
-          status: 402,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        },
-      );
-    }
-  } catch (err) {
-    const status = err instanceof BillingClientError ? err.status : 502;
-    logError(err, {
-      functionName: 'creative-chat',
-      statusCode: status,
-      userId: userData.user.id,
-    });
-    return new Response(JSON.stringify({ error: 'billing_unavailable' }), {
-      status: 502,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  const supabaseHost =
-    (Deno.env.get('ENVIRONMENT') === 'local'
-      ? Deno.env.get('NGROK_URL')
-      : Deno.env.get('SUPABASE_URL')
-    )?.trim() ?? '';
-
-  const {
-    messageId,
-    conversationId,
-    model,
-    newMessageId,
-  }: {
-    messageId: string;
-    conversationId: string;
-    model: Model;
-    newMessageId: string;
-  } = await req.json();
-
-  // Set up cancellation via realtime
-  const abortController = new AbortController();
-  const { signal: abortSignal } = abortController;
-
-  // Create a unique channel for this request
-  const cancelChannelName = `cancel-request-${messageId}`;
-
-  // Subscribe to cancellation signals via realtime
-  const channel = supabaseClient
-    .channel(cancelChannelName)
-    .on('broadcast', { event: 'cancel' }, () => {
-      abortController.abort('Request cancelled by user');
-    })
-    .subscribe();
-
-  // Clean up function
-  const cleanup = () => {
-    supabaseClient.removeChannel(channel);
-  };
-
-  // If the client disconnects, also abort
-  req.signal.addEventListener('abort', () => {
-    abortController.abort('Client disconnected');
-    cleanup();
-  });
-
-  const { data: messages, error: messagesError } = await supabaseClient
-    .from('messages')
-    .select('*')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
-    .overrideTypes<Array<{ content: Content; role: 'user' | 'assistant' }>>();
-
-  if (messagesError) {
-    return new Response(
-      JSON.stringify({
-        error:
-          messagesError instanceof Error
-            ? messagesError.message
-            : 'Unknown error',
-      }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders,
-        },
-      },
-    );
-  }
-
-  if (!messages || messages.length === 0) {
-    return new Response(
-      JSON.stringify({
-        error: 'Messages not found',
-      }),
-      {
-        status: 404,
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders,
-        },
-      },
-    );
-  }
-
-  let content: Content = {
-    model: model,
-  };
-
-  const { data: newMessageData, error: newMessageError } = await supabaseClient
-    .from('messages')
-    .insert({
-      id: newMessageId,
-      conversation_id: conversationId,
-      role: 'assistant',
-      content: content,
-      parent_message_id: messageId,
-    })
-    .select()
-    .single()
-    .overrideTypes<{
-      content: Content;
-      role: 'assistant';
-    }>();
-
-  if (!newMessageData) {
-    return new Response(
-      JSON.stringify({
-        error:
-          newMessageError instanceof Error
-            ? newMessageError.message
-            : 'Unknown error',
-      }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders,
-        },
-      },
-    );
-  }
-
-  try {
-    const messageTree = new Tree<Message>(messages);
-
-    const newMessage = messages.find((msg) => msg.id === messageId);
-
-    if (!newMessage) {
-      throw new Error('Message not found');
-    }
-
-    const currentMessageBranch = messageTree.getPath(newMessage.id);
-
-    const messagesToSend = currentMessageBranch.map((message) => {
-      return {
-        id: message.id,
-        role: message.role,
-        content: message.content,
-      };
-    });
-
-    const newMessages: MessageParam[] = (
-      await Promise.all(
-        messagesToSend.map((message: CoreMessage) => {
-          return message.role === 'user'
-            ? formatCreativeUserMessage(
-                message,
-                supabaseClient,
-                userData.user.id,
-                conversationId,
-              )
-            : formatAssistantMessage(
-                message,
-                supabaseClient,
-                userData.user.id,
-                conversationId,
-              );
-        }),
-      )
-    ).flat();
-
-    const anthropic = new Anthropic({
-      apiKey: Deno.env.get('ANTHROPIC_API_KEY') ?? '',
-    });
-
-    const stream = await anthropic.messages.create(
-      {
-        model: 'claude-sonnet-4-5-20250929',
-        system: systemPrompt,
-        max_tokens: 16000,
-        messages: newMessages,
-        tools: tools,
-        stream: true,
-      },
-      {
-        signal: abortSignal,
-      },
-    );
-
-    // Create a streaming response
-    const responseStream = new ReadableStream({
-      async start(controller) {
-        let currentToolUse: {
-          name: string;
-          id: string;
-          input?: string;
-        } | null = null;
-
-        try {
-          for await (const chunk of stream) {
-            if (abortSignal.aborted) {
-              console.log('aborting');
-              throw new Error('Request cancelled by user');
-            }
-
-            if (chunk.type === 'content_block_start') {
-              if (chunk.content_block.type === 'tool_use') {
-                currentToolUse = {
-                  name: chunk.content_block.name,
-                  id: chunk.content_block.id,
-                  input: '',
-                };
-                content = {
-                  ...content,
-                  toolCalls: [
-                    ...(content.toolCalls || []),
-                    {
-                      name: chunk.content_block.name,
-                      id: chunk.content_block.id,
-                      status: 'pending',
-                    },
-                  ],
-                };
-
-                streamMessage(controller, {
-                  ...newMessageData,
-                  content: content,
-                });
-              }
-            } else if (chunk.type === 'content_block_delta') {
-              if (chunk.delta.type === 'text_delta') {
-                content = {
-                  ...content,
-                  text: (content.text || '') + chunk.delta.text,
-                };
-                streamMessage(controller, {
-                  ...newMessageData,
-                  content: content,
-                });
-              } else if (chunk.delta.type === 'input_json_delta') {
-                if (currentToolUse) {
-                  currentToolUse.input += chunk.delta.partial_json;
-                }
-              }
-            } else if (chunk.type === 'content_block_stop') {
-              if (currentToolUse) {
-                if (currentToolUse.name === 'create_mesh') {
-                  debugLog('=== CREATIVE-CHAT: CREATE_MESH TOOL CALLED ===');
-                  debugLog('Creative-chat: create_mesh tool called', {
-                    toolUseId: currentToolUse.id,
-                    model,
-                    conversationId,
-                  });
-
-                  let toolInput: {
-                    text?: string;
-                    imageIds?: string[];
-                    meshId?: string;
-                  } = {};
-                  try {
-                    toolInput = currentToolUse.input
-                      ? JSON.parse(currentToolUse.input)
-                      : {};
-                  } catch (error) {
-                    console.error('Error parsing tool input JSON:', error);
-                    content = {
-                      ...content,
-                      toolCalls: content.toolCalls?.map((toolCall) =>
-                        toolCall.id === currentToolUse?.id
-                          ? { ...toolCall, status: 'error' }
-                          : toolCall,
-                      ),
-                    };
-                    streamMessage(controller, {
-                      ...newMessageData,
-                      content: content,
-                    });
-                    continue;
-                  }
-
-                  const meshTopology = newMessage?.content?.meshTopology;
-                  const polygonCount = newMessage?.content?.polygonCount;
-
-                  const fallbackText =
-                    toolInput.text ?? newMessage?.content?.text;
-                  const fallbackImages =
-                    toolInput.imageIds ?? newMessage?.content?.images;
-
-                  const meshRequestBody = {
-                    conversationId: conversationId,
-                    text: fallbackText,
-                    images: fallbackImages,
-                    mesh: toolInput.meshId,
-                    model: model,
-                    ...(meshTopology && { meshTopology }),
-                    ...(polygonCount && { polygonCount }),
-                  };
-
-                  debugLog('=== CREATIVE-CHAT: CALLING MESH ENDPOINT ===');
-                  debugLog('Creative-chat: Calling mesh endpoint', {
-                    url: `${supabaseHost}/functions/v1/mesh/`,
-                    body: meshRequestBody,
-                    modelInBody: meshRequestBody.model,
-                  });
-
-                  const result = await fetch(
-                    `${supabaseHost}/functions/v1/mesh`,
-                    {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                        Authorization: req.headers.get('Authorization') ?? '',
-                      },
-                      body: JSON.stringify(meshRequestBody),
-                      signal: abortSignal,
-                    },
-                  );
-
-                  const data = await result.json();
-
-                  debugLog('Creative-chat: Mesh endpoint response', {
-                    status: result.status,
-                    ok: result.ok,
-                    data: data,
-                  });
-
-                  if (!result.ok) {
-                    console.error('Creative-chat: Mesh endpoint failed', {
-                      status: result.status,
-                      error: data.error,
-                      model,
-                      conversationId,
-                    });
-
-                    if (result.status === 402) {
-                      content = {
-                        error: 'insufficient_tokens',
-                      };
-                    } else {
-                      content = {
-                        ...content,
-                        toolCalls: content.toolCalls?.map((toolCall) =>
-                          toolCall.id === currentToolUse?.id
-                            ? { ...toolCall, status: 'error' }
-                            : toolCall,
-                        ),
-                      };
+function flattenMessageForVolcEngine(messages: Array<{ role: string; content: unknown }>): Array<{ role: string; content: any[] }> {
+    return messages.map((msgItem) => {
+        let pureTextContent = ''
+        if (Array.isArray(msgItem.content)) {
+            pureTextContent = msgItem.content
+                .map((singleItem) => {
+                    if (typeof singleItem === 'object' && singleItem !== null && 'type' in singleItem) {
+                        if (singleItem.type === 'text' && 'text' in singleItem) {
+                            return singleItem.text
+                        }
+                        if (singleItem.type === 'image_url' || singleItem.type === 'image') {
+                            return '[上传图片资源]'
+                        }
                     }
-                  } else {
-                    const mesh = { id: data.id, fileType: data.fileType };
-                    content = {
-                      ...content,
-                      toolCalls:
-                        content.toolCalls?.filter(
-                          (toolCall) => toolCall.id !== currentToolUse?.id,
-                        ) || [],
-                      mesh,
-                    };
-                  }
-                  streamMessage(controller, {
-                    ...newMessageData,
-                    content: content,
-                  });
-                }
-                currentToolUse = null;
-              }
-            } else if (chunk.type === 'message_stop') {
-              // Generate suggestions and create final message
-              const finalSuggestions = await generateSuggestions(
-                content,
-                messages,
-                abortSignal,
-                anthropic,
-              );
-
-              content = {
-                ...content,
-                suggestions: finalSuggestions,
-              };
-            }
-          }
-        } catch (error) {
-          if (!abortSignal.aborted) {
-            logError(error, {
-              functionName: 'creative-chat',
-              statusCode: 500,
-              userId: userData.user?.id,
-              conversationId,
-              additionalContext: { messageId, model, content },
-            });
-          }
-          // Persist partial content if it has been modified beyond the default empty state
-          const hasNonDefaultContent =
-            !!content &&
-            ((content.text && content.text.length > 0) ||
-              (content.images && content.images.length > 0) ||
-              !!content.mesh);
-
-          if (!hasNonDefaultContent) {
-            if (abortSignal.aborted) {
-              content = {
-                ...content,
-                text: 'Generation stopped! Retry or enter a new prompt.',
-              };
-            } else {
-              content = {
-                ...content,
-                text: 'An error occurred while processing your request.',
-              };
-            }
-          }
-        } finally {
-          if (content.toolCalls) {
-            content = {
-              ...content,
-              toolCalls:
-                content.toolCalls?.map((toolCall) => ({
-                  ...toolCall,
-                  status: 'error',
-                })) || [],
-            };
-          }
-          const { data: finalMessageData } = await supabaseClient
-            .from('messages')
-            .update({ content })
-            .eq('id', newMessageData.id)
-            .select()
-            .single()
-            .overrideTypes<{
-              content: Content;
-              role: 'assistant';
-            }>();
-
-          if (finalMessageData) {
-            streamMessage(controller, finalMessageData);
-          }
-
-          controller.close();
+                    return String(singleItem)
+                })
+                .join('\n')
+        } else {
+            pureTextContent = String(msgItem.content || '')
         }
-      },
-    });
+        return {
+            role: msgItem.role,
+            content: [{ type: "input_text", text: pureTextContent.trim() }]
+        }
+    })
+}
 
-    return new Response(responseStream, {
-      headers: {
-        'Content-Type': 'text/plain',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-        ...corsHeaders,
-      },
-    });
-  } catch (error) {
-    // Handle abort errors specifically
-    if (abortSignal.aborted) {
-      // Persist partial content if it has been modified beyond the default empty state
-      const hasNonDefaultContent =
-        !!content &&
-        ((content.text && content.text.length > 0) ||
-          (content.images && content.images.length > 0) ||
-          !!content.mesh);
+interface OpenAIStyleRequest {
+    model: string;
+    messages: Array<{ role: string; content: unknown }>;
+    stream?: boolean;
+    temperature?: number;
+    max_tokens?: number;
+}
 
-      if (!hasNonDefaultContent) {
-        content = {
-          ...content,
-          text: 'Generation stopped! Retry or enter a new prompt.',
-        };
-      }
+interface VolcEngineStyleRequest {
+    model: string;
+    input: Array<{ role: string; content: any[] }>;
+    stream?: boolean;
+}
+
+function adaptToVolcEngineStandardFormat(originRequest: OpenAIStyleRequest): VolcEngineStyleRequest {
+    return {
+        model: originRequest.model,
+        input: flattenMessageForVolcEngine(originRequest.messages),
+        stream: originRequest.stream
     }
-    const hasNonDefaultContent =
-      !!content &&
-      ((content.text && content.text.length > 0) ||
-        (content.images && content.images.length > 0) ||
-        !!content.mesh);
+}
 
-    if (!hasNonDefaultContent) {
-      content = {
-        ...content,
-        text: 'An error occurred while processing your request.',
-      };
-    }
-
-    const { data: updatedMessageData, error: updatedMessageError } =
-      await supabaseClient
-        .from('messages')
-        .update({ content })
-        .eq('id', newMessageData.id)
-        .select()
-        .single()
-        .overrideTypes<{
-          content: Content;
-          role: 'assistant';
-        }>();
-
-    if (!updatedMessageError) {
-      return new Response(
-        JSON.stringify({
-          message: updatedMessageData,
-        }),
-        {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders,
-          },
-        },
-      );
+serve(async (request) => {
+    if (request.method === 'OPTIONS') {
+        return new Response('success', {
+            headers: {
+                ...corsHeaders,
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With'
+            }
+        })
     }
 
-    logError(error, {
-      functionName: 'creative-chat',
-      statusCode: 500,
-      userId: userData.user?.id,
-      conversationId,
-      additionalContext: { messageId, model },
-    });
+    try {
+        const originRequestBody = await request.json()
+        const {
+            messageId,
+            conversationId,
+            model = 'quality',
+            newMessageId,
+            customPrompt
+        } = originRequestBody
 
-    return new Response(
-      JSON.stringify({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }),
-      {
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders,
-        },
-      },
-    );
-  } finally {
-    cleanup();
-  }
-});
+        console.log('[Info] Request received:', { conversationId, model })
+
+        const supabaseClient = createClient(
+            Deno.env.get('SUPABASE_URL') || 'http://127.0.0.1:54321',
+            Deno.env.get('SUPABASE_ANON_KEY') || '',
+            {
+                auth: {
+                    autoRefreshToken: false,
+                    persistSession: false,
+                    detectSessionInUrl: false
+                }
+            }
+        )
+
+        const currentModelConfig = MODEL_PRESETS[model] || MODEL_PRESETS.quality
+
+        const { data: historyMessageList, error: queryError } = await supabaseClient
+            .from('messages')
+            .select('id,role,content,parent_message_id,created_at,model,metadata')
+            .eq('conversation_id', conversationId)
+            .order('created_at', { ascending: true })
+
+        if (queryError) {
+            console.error('[Error] Query history failed:', queryError)
+        }
+
+        const insertResult = await supabaseClient.from('messages').insert([{
+            id: newMessageId,
+            conversation_id: conversationId,
+            parent_message_id: messageId,
+            content: '',
+            role: 'assistant',
+            model: currentModelConfig.model,
+            created_at: new Date().toISOString(),
+            metadata: {
+                status: 'generating',
+                modelType: model,
+                complete: false,
+                hasCode: false
+            }
+        }])
+        if (insertResult.error) {
+            console.error('[Error] Create message failed:', insertResult.error)
+        }
+
+        const messageMapContainer = new Map<string, any>()
+        if (historyMessageList && historyMessageList.length > 0) {
+            historyMessageList.forEach(item => {
+                messageMapContainer.set(item.id, item)
+            })
+        }
+
+        const messageBranchChain: any[] = []
+        let currentTargetMsg = messageMapContainer.get(messageId)
+        while (currentTargetMsg) {
+            messageBranchChain.unshift(currentTargetMsg)
+            if (currentTargetMsg.parent_message_id) {
+                currentTargetMsg = messageMapContainer.get(currentTargetMsg.parent_message_id)
+            } else {
+                break
+            }
+        }
+
+        console.log('[Info] Message chain length:', messageBranchChain.length)
+
+        const standardFormattedMessages = messageBranchChain.map(msg => {
+            let text = ''
+            if (typeof msg.content === 'string') {
+                text = msg.content
+            } else if (typeof msg.content === 'object' && msg.content !== null) {
+                text = msg.content.text || msg.content.openscadCode || JSON.stringify(msg.content)
+            }
+            return {
+                role: msg.role === 'user' ? 'user' : 'assistant',
+                content: [{
+                    type: 'text',
+                    text: text
+                }]
+            }
+        })
+
+        console.log('[Info] Formatted messages count:', standardFormattedMessages.length)
+        if (standardFormattedMessages.length > 0) {
+            console.log('[Info] Last user message:', standardFormattedMessages[standardFormattedMessages.length - 1]?.content?.[0]?.text?.substring(0, 100))
+        }
+
+        const baseSkillRule = await readSkillContent()
+        const jsonExample = `{
+  "thinking": "你的设计思路和建模方法说明",
+  "code": "完整的 OpenSCAD 代码"
+}`;
+
+        const finalSystemPrompt = '你是专业的 CAD 建模助手。\n\n' +
+            '## 输出格式要求（必须严格遵守）\n\n' +
+            '当用户提出建模、3D模型相关需求时，**必须**按以下 JSON 格式输出：\n\n' +
+            '```json\n' + jsonExample + '\n' + '```\n\n' +
+            '## 规则\n' +
+            '1. **thinking**: 用简洁的中文描述设计思路、造型特点、参数选择原因\n' +
+            '2. **code**: 严格遵循 SKILL.md 中的 OpenSCAD 语法规范\n' +
+            '3. **格式**: 输出必须是合法的 JSON，可用 \`\`\`json 包裹\n' +
+            '4. **禁止**: 禁止只聊天不输出代码，也禁止只输出代码无思路说明\n' +
+            (customPrompt || '');
+
+
+        const fullChatRequestMessages = [
+            {
+                role: 'system',
+                content: [{ type: 'text', text: finalSystemPrompt }]
+            },
+            ...standardFormattedMessages
+        ]
+
+        const targetVolcRequest = adaptToVolcEngineStandardFormat({
+            model: currentModelConfig.model,
+            messages: fullChatRequestMessages,
+            stream: false,
+            temperature: currentModelConfig.temperature,
+            max_tokens: currentModelConfig.maxTokens
+        })
+
+        console.log('[Info] Calling VolcEngine API...')
+
+        const llmResponse = await fetch(`${VOLCENGINE_CONFIG.baseURL}/responses`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Authorization': `Bearer ${VOLCENGINE_CONFIG.apiKey}`,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify(targetVolcRequest)
+        })
+
+        if (!llmResponse.ok) {
+            const errorText = await llmResponse.text()
+            console.error('[Error] API request failed:', errorText)
+            throw new Error(`API returned ${llmResponse.status}`)
+        }
+
+        console.log('[Info] Receiving full response from VolcEngine...')
+
+        // ========================================
+        // 🚀 新架构：全量接收 → 入库 → 解析 → 返回
+        // ========================================
+
+        // 步骤 1：全量接收火山引擎的完整响应
+        const rawResponse = await llmResponse.text()
+        console.log('[Info] Raw response length:', rawResponse.length)
+
+        // 步骤 2：解析响应，提取完整文本
+        let fullReplyContent = ''
+
+        // 尝试解析为 JSON（非流式响应格式）
+        try {
+            const jsonResponse = JSON.parse(rawResponse)
+            
+            // 火山引擎非流式响应格式：{ output: [{ content: [{ text: "..." }] }] }
+            if (jsonResponse.output && Array.isArray(jsonResponse.output)) {
+                for (const item of jsonResponse.output) {
+                    if (item.content && Array.isArray(item.content)) {
+                        for (const c of item.content) {
+                            if (c.text) {
+                                fullReplyContent += c.text
+                            }
+                        }
+                    }
+                }
+            } else if (jsonResponse.text) {
+                // 直接的 text 字段
+                fullReplyContent = jsonResponse.text
+            } else if (jsonResponse.choices && Array.isArray(jsonResponse.choices)) {
+                // OpenAI 兼容格式
+                for (const choice of jsonResponse.choices) {
+                    if (choice.message?.content) {
+                        fullReplyContent += choice.message.content
+                    }
+                }
+            }
+        } catch {
+            // 回退：尝试解析 SSE 格式
+            const lines = rawResponse.split('\n')
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue
+                const data = line.slice(6)
+                if (data === '[DONE]') continue
+                try {
+                    const json = JSON.parse(data)
+                    if (json.delta) {
+                        fullReplyContent += json.delta
+                    } else if (json.output && Array.isArray(json.output)) {
+                        for (const item of json.output) {
+                            if (item.content && Array.isArray(item.content)) {
+                                for (const c of item.content) {
+                                    if (c.text) fullReplyContent += c.text
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+
+        console.log('[Info] Parsed content length:', fullReplyContent.length)
+
+        // 步骤 3：解析 thinking 和 code
+        let thinking = ''
+        let openscadCode: string | undefined
+
+        // 尝试从 JSON 中提取
+        function extractAndCleanJson(text: string): any | null {
+            try {
+                // 去掉所有代码块包裹
+                let cleaned = text.replace(/```json|```/g, '').trim()
+                
+                // 提取第一个 { 到最后一个 }
+                const first = cleaned.indexOf('{')
+                const last = cleaned.lastIndexOf('}')
+                if (first === -1 || last === -1 || first >= last) return null
+
+                cleaned = cleaned.slice(first, last + 1)
+                return JSON.parse(cleaned)
+            } catch (e) {
+                return null
+            }
+        }
+
+        const jsonData = extractAndCleanJson(fullReplyContent)
+        if (jsonData) {
+            thinking = jsonData.thinking || ''
+            openscadCode = jsonData.code || undefined
+            console.log('[Info] Parsed JSON:', { thinkingLength: thinking.length, codeLength: openscadCode?.length || 0 })
+        } else {
+            // 回退到正则提取
+            console.log('[Info] JSON parse failed, falling back to regex...')
+            const codeMatch = fullReplyContent.match(/```openscad([\s\S]*?)```/i)
+            openscadCode = codeMatch ? codeMatch[1].trim() : undefined
+            thinking = fullReplyContent
+                .replace(/```json[\s\S]*?```/gi, '')
+                .replace(/```openscad[\s\S]*?```/gi, '')
+                .trim()
+        }
+
+        const hasCode = !!openscadCode
+
+        console.log('[Info] Parsed result:', {
+            thinkingLength: thinking.length,
+            hasCode,
+            codeLength: openscadCode?.length || 0
+        })
+
+        // 步骤 4：保存到数据库
+        await supabaseClient.from('messages').update({
+            content: thinking, // 先保存思考过程
+            metadata: {
+                status: 'completed',
+                modelType: model,
+                complete: true,
+                hasCode
+            }
+        }).eq('id', newMessageId)
+
+        // 步骤 5：构建结构化内容
+        const contentObj = {
+            text: thinking,
+            ...(openscadCode && { openscadCode })
+        }
+
+        const { error: updateError } = await supabaseClient.from('messages').update({
+            content: contentObj,
+            metadata: {
+                status: 'completed',
+                modelType: model,
+                complete: true,
+                hasCode
+            }
+        }).eq('id', newMessageId)
+
+        if (updateError) {
+            console.error('[Error] Failed to update message:', updateError)
+        } else {
+            console.log('[Info] Message saved successfully')
+        }
+
+        // 步骤 6：返回给前端（JSON 格式）
+        const responseData = {
+            id: newMessageId,
+            conversation_id: conversationId,
+            parent_message_id: messageId,
+            role: 'assistant',
+            content: contentObj,
+            created_at: new Date().toISOString(),
+            rating: 0,
+            model: currentModelConfig.model
+        }
+
+        return new Response(JSON.stringify(responseData), {
+            headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json; charset=utf-8',
+            },
+        })
+
+    } catch (globalError) {
+        console.error('[FATAL ERROR]', (globalError as Error).message)
+
+        return new Response(JSON.stringify({
+            code: 500,
+            msg: '服务运行异常',
+            error: (globalError as Error).message
+        }), {
+            status: 500,
+            headers: {
+                ...corsHeaders,
+                'Content-Type': 'application/json; charset=utf-8'
+            }
+        })
+    }
+})

@@ -1,7 +1,6 @@
 import { Message, Model } from '@shared/types';
 import {
   ArrowUpRight,
-  Box,
   ChevronLeft,
   ChevronRight,
   History,
@@ -11,10 +10,12 @@ import {
   Loader2,
   ImageIcon,
   Sparkles,
+  Eye,
 } from 'lucide-react';
 import { Streamdown } from 'streamdown';
 import { StreamingCodeBlock } from '@/components/chat/StreamingCodeBlock';
 import { Button } from '@/components/ui/button';
+import { Box } from '@/components/ui/box';
 import { RefreshCw } from 'lucide-react';
 import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -24,8 +25,6 @@ import {
   PARAMETRIC_MODELS,
 } from '@/lib/utils';
 import { Link } from '@tanstack/react-router';
-import { TrialDialog } from '@/components/auth/TrialDialog';
-import { getLevel, useAuth } from '@/contexts/AuthContext';
 import { ImageViewer } from '@/components/ImageViewer';
 import { useConversation } from '@/contexts/ConversationContext';
 import {
@@ -43,8 +42,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { useMeshData } from '@/hooks/useMeshData';
-import { MeshImagePreview } from '@/components/viewer/MeshImagePreview';
 import { TreeNode } from '@shared/Tree';
 
 const linkParametricMode = (text: string) =>
@@ -76,19 +73,6 @@ interface AssistantMessageProps {
   limitReached?: boolean;
 }
 
-const paymentRequiredMessages = {
-  insufficient_tokens: <InsufficientTokensMessage />,
-  trial_user_E9ueHIgpei2JvFUDeJLEnwzDhy7GF38a: <TrialUserMessage />,
-  free_user_E9ueHIgpei2JvFUDeJLEnwzDhy7GF38a: <FreeUserMessage />,
-  limit_reached_E9ueHIgpei2JvFUDeJLEnwzDhy7GF38a: <LimitReachedMessage />,
-  limit_reached_image_E9ueHIgpei2JvFUDeJLEnwzDhy7GF38a: (
-    <ImageLimitReachedMessage />
-  ),
-  limit_reached_mesh_E9ueHIgpei2JvFUDeJLEnwzDhy7GF38a: (
-    <MeshLimitReachedMessage />
-  ),
-};
-
 export function AssistantMessage({
   message,
   isLoading,
@@ -108,6 +92,8 @@ export function AssistantMessage({
     type: conversation.type,
   });
 
+  console.log('[AssistantMessage]', message.id, 'role:', message.role, 'conversation.type:', conversation.type, 'has artifact:', !!message.content.artifact, 'has text:', !!message.content.text, 'text length:', message.content.text?.length || 0);
+
   // Removed parameter diff banner from assistant message
 
   const changeLeaf = useCallback(
@@ -125,8 +111,8 @@ export function AssistantMessage({
     [message.siblings, message.id],
   );
 
-  const leafNodes = useMemo(
-    () =>
+  const [leafNodes] = useMemo(
+    () => [
       message.siblings.map((branch) => {
         let current = branch;
         while (current.children && current.children.length > 0) {
@@ -134,28 +120,15 @@ export function AssistantMessage({
         }
         return current;
       }),
+    ],
     [message.siblings],
   );
 
-  // Fetch mesh data to check status
-  const { data: meshDataQuery } = useMeshData({
-    id: message.content.mesh?.id ?? '',
-  });
-
-  // Upscale functionality for quality/draft meshes - only show when mesh is complete
-  const canUpscale =
-    model === 'quality' &&
-    message.content.mesh &&
-    meshDataQuery.data?.status === 'success';
-
   const handleUpscale = useCallback(() => {
-    if (!message.content.mesh || !onUpscale) return;
+    // TODO: Implement upscale for OpenSCAD
+  }, []);
 
-    onUpscale({
-      meshId: message.content.mesh.id,
-      parentMessageId: message.parent_message_id,
-    });
-  }, [message.content.mesh, message.parent_message_id, onUpscale]);
+  const canUpscale = false; // Disabled without mesh backend
 
   // Check if this message is the last one in the conversation
   const isLastMessage = conversation.current_message_leaf_id === message.id;
@@ -188,22 +161,9 @@ export function AssistantMessage({
       >
         <div className="flex flex-col gap-3 p-3 text-sm text-adam-text-primary">
           {message.content.error ? (
-            <>
-              {message.content.error in paymentRequiredMessages ? (
-                paymentRequiredMessages[
-                  message.content.error as keyof typeof paymentRequiredMessages
-                ]
-              ) : message.content.text &&
-                message.content.text in paymentRequiredMessages ? (
-                paymentRequiredMessages[
-                  message.content.text as keyof typeof paymentRequiredMessages
-                ]
-              ) : (
-                <span className="px-1">
-                  We ran into some trouble with your prompt
-                </span>
-              )}
-            </>
+            <span className="px-1">
+              {message.content.text || 'We ran into some trouble with your prompt'}
+            </span>
           ) : (
             <>
               {conversation.type === 'parametric' &&
@@ -308,22 +268,29 @@ export function AssistantMessage({
                   </div>
                 )}
               <AssistantMessageImagesViewer message={message} />
-              {message.content.mesh && (
-                <div
-                  onClick={() => {
-                    if (currentMessage && message.id === currentMessage?.id) {
-                      setCurrentMessage(null);
-                    } else {
-                      setCurrentMessage(message);
-                    }
-                  }}
-                  className={cn(
-                    'cursor-pointer overflow-hidden rounded-md',
-                    currentMessage?.id === message.id &&
-                      'outline outline-2 outline-adam-blue',
-                  )}
-                >
-                  <MeshImagePreview meshId={message.content.mesh.id} />
+              {message.content.openscadCode && (
+                <div className="mt-2 flex flex-col gap-2">
+                  <StreamingCodeBlock
+                    code={message.content.openscadCode}
+                    isStreaming={isLoading && !message.content.text}
+                    filename="model.scad"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentMessage(message)}
+                    className={cn(
+                      'group relative flex items-center gap-2 bg-black hover:bg-adam-bg-dark',
+                      currentMessage && currentMessage.id === message.id
+                        ? 'border-adam-blue'
+                        : 'border-gray-200/20 dark:border-gray-700',
+                    )}
+                  >
+                    <Eye className="h-4 w-4 text-adam-text-primary" />
+                    <span className="font-medium text-adam-text-primary">
+                      Preview 3D Model
+                    </span>
+                    <ArrowUpRight className="absolute right-2 h-3 w-3 text-adam-neutral-400 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                  </Button>
                 </div>
               )}
               {message.content.artifact &&
@@ -332,12 +299,16 @@ export function AssistantMessage({
                     c.name === 'build_parametric_model' &&
                     c.status === 'pending',
                 ) && (
-                  <ObjectButton
-                    message={message}
-                    currentMessage={currentMessage}
-                    setCurrentMessage={setCurrentMessage}
-                    currentVersion={currentVersion}
-                  />
+                  <div>
+                    {conversation.type !== 'parametric' && (
+                      <ObjectButton
+                        message={message}
+                        currentMessage={currentMessage}
+                        setCurrentMessage={setCurrentMessage}
+                        currentVersion={currentVersion}
+                      />
+                    )}
+                  </div>
                 )}
             </>
           )}
@@ -509,7 +480,7 @@ export function AssistantMessage({
   );
 }
 
-function ObjectButton({
+export function ObjectButton({
   message,
   currentMessage,
   setCurrentMessage,
@@ -566,117 +537,6 @@ function ObjectButton({
       </div>
     </Button>
   );
-}
-
-function FreeUserMessage() {
-  return (
-    <span>
-      You are on a free plan!{' '}
-      <Link to="/subscription" className="text-adam-blue hover:underline">
-        Upgrade
-      </Link>{' '}
-      to a paid plan to experience all the features Adam has to offer.
-    </span>
-  );
-}
-
-function TrialUserMessage() {
-  return (
-    <span>
-      <TrialDialog>
-        <span className="cursor-pointer text-adam-blue hover:underline">
-          Start a trial
-        </span>
-      </TrialDialog>{' '}
-      to experience all Pro features for 7 days, completely free.
-    </span>
-  );
-}
-
-function LimitReachedMessage() {
-  return (
-    <span>
-      You have reached the limit of parametric generations in your current plan.{' '}
-      <Link to="/subscription" className="text-adam-blue hover:underline">
-        Upgrade
-      </Link>{' '}
-      for more parametric generations :)
-    </span>
-  );
-}
-
-function ImageLimitReachedMessage() {
-  return (
-    <span>
-      You have reached the limit of image generations in your current plan.{' '}
-      <Link to="/subscription" className="text-adam-blue hover:underline">
-        Upgrade
-      </Link>{' '}
-      for more image generations :)
-    </span>
-  );
-}
-
-function InsufficientTokensMessage() {
-  const { billing } = useAuth();
-  const level = getLevel(billing);
-  return (
-    <span>
-      You don't have enough tokens for this operation.{' '}
-      <Link to="/settings" className="text-adam-blue hover:underline">
-        Buy more tokens
-      </Link>
-      {level === 'free' && (
-        <>
-          {' '}
-          or{' '}
-          <Link to="/subscription" className="text-adam-blue hover:underline">
-            upgrade your plan
-          </Link>
-        </>
-      )}
-      .
-    </span>
-  );
-}
-
-function MeshLimitReachedMessage() {
-  const { billing } = useAuth();
-  const level = getLevel(billing);
-  if (level === 'free') {
-    return (
-      <span>
-        You have reached the limit of 3 creative generations per day. Please
-        upgrade to{' '}
-        <Link to="/subscription" className="text-adam-blue hover:underline">
-          a paid plan
-        </Link>{' '}
-        for more creative generations :)
-      </span>
-    );
-  }
-
-  if (level === 'standard') {
-    return (
-      <span>
-        You have reached the limit of 100 creative generations per month. Please
-        upgrade to{' '}
-        <Link to="/subscription" className="text-adam-blue hover:underline">
-          Pro
-        </Link>{' '}
-        for more creative generations :)
-      </span>
-    );
-  }
-
-  if (level === 'pro' || level === 'max') {
-    return (
-      <span>
-        You have reached the limit of 1500 generations per month. Let us know if
-        you need more!
-      </span>
-    );
-  }
 }
 
 function RetryModelSelector({

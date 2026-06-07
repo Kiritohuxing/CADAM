@@ -50,6 +50,8 @@ export type Content = {
   index?: number;
   images?: string[];
   mesh?: Mesh;
+  // Creative mode: OpenSCAD code for browser-side compilation
+  openscadCode?: string;
   // Parametric mode: bounding box dimensions from STL parsing
   meshBoundingBox?: { x: number; y: number; z: number };
   // Parametric mode: original filename for import() in OpenSCAD
@@ -65,12 +67,22 @@ export type Content = {
   preferredFormat?: 'glb' | 'fbx';
 };
 
+export type ParametricArtifactComponent = {
+  id?: string;
+  name?: string;
+  description?: string;
+  openscad?: string;
+  code?: string;
+  parameters?: Record<string, any>;
+} & { [key: string]: any };
+
 export type ParametricArtifact = {
   title: string;
   version: string;
   code: string;
   parameters: Parameter[];
   suggestions?: string[];
+  components?: ParametricArtifactComponent[];
 };
 
 export type ParameterOption = { value: string | number; label: string };

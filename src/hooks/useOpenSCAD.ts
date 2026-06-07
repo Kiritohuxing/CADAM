@@ -7,33 +7,68 @@ import {
 import OpenSCADError from '@/lib/OpenSCADError';
 import { normalizeOpenSCADDxf } from '@/utils/dxfUtils';
 
+export type WorkerMode = 'creative' | 'parametric';
+
 // Type for pending request resolvers
 type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
 };
 
-export function useOpenSCAD() {
+export function useOpenSCAD(mode: WorkerMode = 'parametric') {
   const [isCompiling, setIsCompiling] = useState(false);
   const [error, setError] = useState<OpenSCADError | Error | undefined>();
   const [isError, setIsError] = useState(false);
+  const [compileError, setCompileError] = useState<Error | undefined>();
   const [output, setOutput] = useState<Blob | undefined>();
   const [offOutput, setOffOutput] = useState<Blob | undefined>();
   const workerRef = useRef<Worker | null>(null);
+  const currentModeRef = useRef<WorkerMode>(mode);
+  const compileTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track files written to the worker filesystem
   const writtenFilesRef = useRef<Set<string>>(new Set());
   // Track pending requests waiting for worker responses
   const pendingRequestsRef = useRef<Map<string, PendingRequest>>(new Map());
 
   const getWorker = useCallback(() => {
-    if (!workerRef.current) {
-      workerRef.current = new Worker(
-        new URL('../worker/worker.ts', import.meta.url),
-        { type: 'module' },
-      );
+    if (!workerRef.current || currentModeRef.current !== mode) {
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
+        writtenFilesRef.current.clear();
+        pendingRequestsRef.current.forEach((pending) => {
+          pending.reject(new Error('Worker terminated'));
+        });
+        pendingRequestsRef.current.clear();
+      }
+      currentModeRef.current = mode;
+      const workerPath = mode === 'creative' 
+        ? new URL('../worker/creative-worker.ts', import.meta.url) 
+        : new URL('../worker/parametric-worker.ts', import.meta.url);
+      workerRef.current = new Worker(workerPath, { type: 'module' });
+      
+      workerRef.current.onerror = (e) => {
+        console.error('[OpenSCAD Worker] Error:', e);
+        setCompileError(new Error(`Worker error: ${e.message}`));
+        setIsCompiling(false);
+        if (compileTimeoutRef.current) {
+          clearTimeout(compileTimeoutRef.current);
+          compileTimeoutRef.current = null;
+        }
+      };
+      
+      workerRef.current.onmessageerror = (e) => {
+        console.error('[OpenSCAD Worker] Message error:', e);
+        setCompileError(new Error('Worker message error'));
+        setIsCompiling(false);
+        if (compileTimeoutRef.current) {
+          clearTimeout(compileTimeoutRef.current);
+          compileTimeoutRef.current = null;
+        }
+      };
     }
     return workerRef.current;
-  }, []);
+  }, [mode]);
 
   const eventHandler = useCallback((event: MessageEvent) => {
     const { id, type, err } = event.data;
@@ -56,6 +91,11 @@ export function useOpenSCAD() {
       type === WorkerMessageType.PREVIEW ||
       type === WorkerMessageType.EXPORT
     ) {
+      if (compileTimeoutRef.current) {
+        clearTimeout(compileTimeoutRef.current);
+        compileTimeoutRef.current = null;
+      }
+      
       if (err) {
         setError(err);
         setIsError(true);
@@ -133,6 +173,18 @@ export function useOpenSCAD() {
       setIsCompiling(true);
       setError(undefined);
       setIsError(false);
+      setCompileError(undefined);
+
+      if (compileTimeoutRef.current) {
+        clearTimeout(compileTimeoutRef.current);
+        compileTimeoutRef.current = null;
+      }
+
+      compileTimeoutRef.current = setTimeout(() => {
+        setCompileError(new Error('Compilation timed out'));
+        setIsCompiling(false);
+        compileTimeoutRef.current = null;
+      }, 60000);
 
       const worker = getWorker();
 
@@ -211,5 +263,6 @@ export function useOpenSCAD() {
     offOutput,
     error,
     isError,
+    compileError,
   };
 }

@@ -21,7 +21,6 @@ import {
   shouldShowNormalIntensity,
 } from '@/constants/meshConstants';
 import { CreativeModel, Model } from '@shared/types';
-import posthog from 'posthog-js';
 
 interface LightingControlsProps {
   brightness: number;
@@ -121,10 +120,6 @@ export function LightingControls({
       // Reset to current brightness if input is invalid
       setBrightnessInput(brightness.toFixed(0));
     }
-    posthog.capture('lighting_controls', {
-      event: 'brightness_changed',
-      value,
-    });
   };
 
   const applyRoughnessInput = () => {
@@ -136,10 +131,6 @@ export function LightingControls({
       // Reset to current roughness if input is invalid
       setRoughnessInput(roughness.toFixed(0));
     }
-    posthog.capture('lighting_controls', {
-      event: 'roughness_changed',
-      value,
-    });
   };
 
   const applyNormalIntensityInput = () => {
@@ -151,10 +142,6 @@ export function LightingControls({
       // Reset to current normal intensity if input is invalid
       setNormalIntensityInput(normalIntensity.toFixed(0));
     }
-    posthog.capture('lighting_controls', {
-      event: 'normal_intensity_changed',
-      value,
-    });
   };
 
   const handleKeyDown = (
@@ -173,36 +160,19 @@ export function LightingControls({
     if (showNormalIntensityControl) {
       onNormalIntensityChange(DEFAULT_NORMAL_INTENSITY);
     }
-    posthog.capture('lighting_controls', {
-      event: 'reset',
-      modelQuality,
-      hasNormalIntensity: showNormalIntensityControl,
-    });
   };
 
   // Individual reset functions
   const resetBrightness = () => {
     onBrightnessChange(defaultBrightness);
-    posthog.capture('lighting_controls', {
-      event: 'brightness_reset',
-      modelQuality,
-    });
   };
 
   const resetRoughness = () => {
     onRoughnessChange(DEFAULT_ROUGHNESS);
-    posthog.capture('lighting_controls', {
-      event: 'roughness_reset',
-      modelQuality,
-    });
   };
 
   const resetNormalIntensity = () => {
     onNormalIntensityChange(DEFAULT_NORMAL_INTENSITY);
-    posthog.capture('lighting_controls', {
-      event: 'normal_intensity_reset',
-      modelQuality,
-    });
   };
 
   const formatPolygonCount = (count?: number) => {

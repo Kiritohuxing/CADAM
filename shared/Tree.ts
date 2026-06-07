@@ -15,15 +15,19 @@ class Tree<T extends TreeElement> {
 
   constructor(elements: T[]) {
     const nodes: Map<string, TreeNode<T>> = new Map(); // UUID -> node
-    const rootNodes: TreeNode<T>[] = [];
+    const rootNodesRef: { value: TreeNode<T>[] } = { value: [] };
     // First pass: Create all nodes
     elements.forEach((element) => {
       const node: TreeNode<T> = {
         ...element,
         children: [],
         parent: null,
-        get siblings() {
-          return this.parent ? this.parent.children : rootNodes;
+        get siblings(): TreeNode<T>[] {
+          if (this.parent) {
+            return this.parent.children;
+          } else {
+            return rootNodesRef.value;
+          }
         },
       };
       nodes.set(element.id, node);
@@ -41,13 +45,13 @@ class Tree<T extends TreeElement> {
           }
         } else {
           // No parent means this is a root node
-          rootNodes.push(node);
+          rootNodesRef.value.push(node);
         }
       }
     });
 
     this.allNodes = nodes;
-    this.rootNodes = rootNodes;
+    this.rootNodes = rootNodesRef.value;
   }
 
   getPath(id: string) {

@@ -9,22 +9,19 @@ import { UserMessage } from '@/components/chat/UserMessage';
 import { ShareContent } from '@/components/ui/ShareContent';
 import { useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/contexts/AuthContext';
 import { useConversation } from '@/contexts/ConversationContext';
 import { AssistantLoading } from '@/components/chat/AssistantLoading';
 import { ChatTitle } from '@/components/chat/ChatTitle';
-import { LimitReachedMessage } from '@/components/LimitReachedMessage';
-import { LowPromptsWarningMessage } from '@/components/LowPromptsWarningMessage';
 import { CreateIcon } from '@/components/icons/ui/CreateIcon';
-import { ConditionalWrapper } from '@/components/ConditionalWrapper';
 import { TreeNode } from '@shared/Tree';
+import { ConditionalWrapper } from '@/components/ConditionalWrapper';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Share } from 'lucide-react';
-import { useMeshData } from '@/hooks/useMeshData';
+import { ParametricModelsDisplay } from '@/components/viewer/ParametricModelsDisplay';
 
 interface ChatSectionProps {
   messages: TreeNode<Message>[];
@@ -64,8 +61,6 @@ export function ChatSection({
   const isMobile = useIsMobile();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { conversation, updateConversation } = useConversation();
-  const { session, billing } = useAuth();
-  const totalTokens = billing?.tokens.total ?? 0;
   const navigate = useNavigate();
 
   const scrollToBottom = useCallback(() => {
@@ -82,14 +77,6 @@ export function ChatSection({
   const model =
     conversation.settings?.model ??
     (conversation.type === 'parametric' ? 'fast' : 'quality');
-
-  const lowPrompts = useMemo(() => {
-    return totalTokens > 0 && totalTokens <= 10;
-  }, [totalTokens]);
-
-  const limitReached = useMemo(() => {
-    return totalTokens <= 0;
-  }, [totalTokens]);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -117,37 +104,12 @@ export function ChatSection({
     (index: number) => {
       return messages.slice(0, index + 1).filter((m) => m.role === 'assistant')
         .length;
-    },
-    [messages],
-  );
+    }, [messages, conversation.current_message_leaf_id]);
 
-  // Check mesh loading status if the last message has a mesh
-  const { data: meshData } = useMeshData({
-    id: lastMessage?.content?.mesh?.id || '',
-  });
-
-  // Only show suggestions when mesh is fully loaded or if there's no mesh
-  const shouldShowSuggestions = useMemo(() => {
-    const suggestions =
-      lastMessage?.content?.artifact?.suggestions ||
-      lastMessage?.content?.suggestions ||
-      [];
-
-    // No suggestions to show
-    if (suggestions.length === 0) return false;
-
-    // If there's no mesh, show suggestions immediately
-    if (!lastMessage?.content?.mesh) return true;
-
-    // If there's a mesh, only show suggestions when it's fully loaded
-    return meshData?.status === 'success';
-  }, [lastMessage, meshData]);
-
-  const suggestions = shouldShowSuggestions
-    ? lastMessage?.content?.artifact?.suggestions ||
-      lastMessage?.content?.suggestions ||
-      []
-    : [];
+  const suggestions =
+    lastMessage?.content?.artifact?.suggestions ||
+    lastMessage?.content?.suggestions ||
+    [];
 
   const handleSuggestionSelect = useCallback(
     (suggestion: string) => {
@@ -234,64 +196,66 @@ export function ChatSection({
       >
         <div className="pointer-events-none sticky left-0 top-0 z-50 mr-4 h-3 bg-gradient-to-b from-adam-bg-secondary-dark/90 to-transparent" />
         <div className="space-y-4 pb-6">
-          {messages.map((message, index) => {
+          {/* fix: 去重，按 id 只保留第一条 */}
+          {messages.reduce((acc: TreeNode<Message>[], msg) => {
+            if (!acc.find(m => m.id === msg.id)) {
+              acc.push(msg);
+            }
+            return acc;
+          }, []).map((message, index) => {
             return (
               <div className="p-1" key={message.id}>
                 {message.role === 'assistant' ? (
-                  <AssistantMessage
-                    message={message}
-                    changeRating={changeRating}
-                    isLoading={isLoading}
-                    currentVersion={getCurrentVersion(index)}
-                    restoreMessage={restoreMessage}
-                    limitReached={limitReached}
-                    onRetry={retryMessage}
-                    onUpscale={upscaleMessage}
-                  />
+                  <>
+                    <AssistantMessage
+                      message={message}
+                      changeRating={changeRating}
+                      isLoading={isLoading}
+                      currentVersion={getCurrentVersion(index)}
+                      restoreMessage={restoreMessage}
+                      onRetry={retryMessage}
+                      onUpscale={upscaleMessage}
+                    />
+                    {conversation.type === 'parametric' &&
+                      message.content?.artifact?.components &&
+                      Array.isArray(message.content.artifact.components) &&
+                      message.content.artifact.components.length > 0 && (
+                        <ParametricModelsDisplay
+                          message={message}
+                          currentVersion={getCurrentVersion(index)}
+                        />
+                      )}
+                  </>
                 ) : (
                   <UserMessage
                     message={message}
                     onEdit={onEdit}
                     isLoading={isLoading}
-                    limitReached={limitReached}
                   />
                 )}
               </div>
             );
           })}
-          {isLoading && lastMessage?.role !== 'assistant' && (
-            <AssistantLoading />
-          )}
-          {/* Made the Low Prompt Warning not Sticky */}
-          {session && session.user && limitReached && <LimitReachedMessage />}
-          {session && session.user && lowPrompts && !limitReached && (
-            <LowPromptsWarningMessage
-              tokensRemaining={totalTokens}
-              layout="stacked"
-            />
-          )}
         </div>
       </ScrollArea>
-      {onSendMessage && (
-        <div className="w-full min-w-52 max-w-xl bg-transparent px-4 pb-6">
-          <SuggestionPills
-            disabled={limitReached}
-            suggestions={suggestions}
-            onSelect={handleSuggestionSelect}
-          />
-          <TextAreaChat
-            stopGenerating={stopGenerating}
-            onSubmit={onSendMessage}
-            placeholder="Keep iterating with Adam..."
-            isLoading={isLoading}
-            disabled={limitReached}
-            type={conversation.type}
-            model={model}
-            setModel={handleModelChange}
-            conversation={conversation}
-          />
-        </div>
-      )}
+
+      <div className="w-full min-w-52 max-w-xl bg-transparent px-4 pb-6">
+        <SuggestionPills
+          suggestions={suggestions}
+          onSelect={handleSuggestionSelect}
+        />
+        <TextAreaChat
+          stopGenerating={stopGenerating}
+          onSubmit={onSendMessage}
+          placeholder="Keep iterating with Adam..."
+          isLoading={isLoading}
+          disabled={false}
+          type={conversation.type}
+          model={model}
+          setModel={handleModelChange}
+          conversation={conversation}
+        />
+      </div>
     </div>
   );
 }

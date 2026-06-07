@@ -1,4 +1,4 @@
-import { useOpenSCAD } from '@/hooks/useOpenSCAD';
+import { useOpenSCAD, WorkerMode } from '@/hooks/useOpenSCAD';
 import { useCallback, useEffect, useState, useContext, useRef } from 'react';
 import { ThreeScene } from '@/components/viewer/ThreeScene';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
@@ -51,6 +51,7 @@ interface OpenSCADPreviewProps {
   fixError?: (error: OpenSCADError) => void;
   isMobile?: boolean;
   backgroundColor?: string;
+  mode?: WorkerMode;
 }
 
 export function OpenSCADPreview({
@@ -61,6 +62,7 @@ export function OpenSCADPreview({
   fixError,
   isMobile,
   backgroundColor,
+  mode = 'parametric',
 }: OpenSCADPreviewProps) {
   const {
     compileScad,
@@ -71,9 +73,11 @@ export function OpenSCADPreview({
     offOutput,
     isError,
     error,
-  } = useOpenSCAD();
+    compileError,
+  } = useOpenSCAD(mode);
   const [geometry, setGeometry] = useState<BufferGeometry | null>(null);
   const [coloredGroup, setColoredGroup] = useState<Group | null>(null);
+  const [compileTimeout, setCompileTimeout] = useState(false);
   // Use context directly to avoid throwing if provider is not mounted (e.g. VisualCard)
   const meshFilesCtx = useContext(MeshFilesContext);
   // Track which files we've written to avoid re-writing unchanged blobs
@@ -123,6 +127,13 @@ export function OpenSCADPreview({
   useEffect(() => {
     if (!scadCode) return;
 
+    console.log('[OpenSCADViewer] Compiling code:', {
+      length: scadCode.length,
+      mode,
+      firstLines: scadCode.slice(0, 200),
+      lastLines: scadCode.slice(-100),
+    });
+
     const compileWithMeshFiles = async () => {
       try {
         await prepareMeshFiles(scadCode);
@@ -171,7 +182,6 @@ export function OpenSCADPreview({
           if (cancelled) return;
           const loader = new STLLoader();
           const geom = loader.parse(buffer);
-          geom.center();
           geom.computeVertexNormals();
           if (mountedGeometryRef.current) mountedGeometryRef.current.dispose();
           mountedGeometryRef.current = geom;
@@ -343,6 +353,28 @@ export function OpenSCADPreview({
             {isError && (
               <div className="flex h-full items-center justify-center">
                 <FixWithAIButton error={error} fixError={fixError} />
+              </div>
+            )}
+            {compileError && (
+              <div className="flex h-full flex-col items-center justify-center p-4">
+                <CircleAlert className="mb-2 h-10 w-10 text-adam-error" />
+                <p className="text-sm font-medium text-adam-text-primary/70 text-center">
+                  {compileError.message}
+                </p>
+                <p className="mt-2 text-xs text-adam-text-primary/50">
+                  Please try again or check your OpenSCAD code
+                </p>
+              </div>
+            )}
+            {scadCode && !geometry && !coloredGroup && !isCompiling && !isError && !compileError && (
+              <div className="flex h-full flex-col items-center justify-center p-4">
+                <CircleAlert className="mb-2 h-10 w-10 text-adam-warning" />
+                <p className="text-sm font-medium text-adam-text-primary/70 text-center">
+                  No geometry rendered
+                </p>
+                <p className="mt-2 text-xs text-adam-text-primary/50">
+                  Check console for details
+                </p>
               </div>
             )}
           </>

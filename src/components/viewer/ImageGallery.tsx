@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useCurrentMessage } from '@/contexts/CurrentMessageContext';
 import { Carousel, CarouselContent, CarouselItem } from '../ui/carousel';
 import type { CarouselApi } from '../ui/carousel';
@@ -12,11 +12,11 @@ import { CreativeModel } from '@shared/types';
 
 export function ImageGallery({ imageIds }: { imageIds: string[] }) {
   const { currentMessage, setCurrentMessage } = useCurrentMessage();
-  const [currentIndex, setCurrentIndex] = useState(
-    currentMessage?.content.index ?? 0,
-  );
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [api, setApi] = useState<CarouselApi>();
   const isMobile = useIsMobile();
+  const isMounted = useRef(false);
+  const ignoreNextScroll = useRef(false);
 
   const { data: imagesData, url: imageUrls } = useImagesData(imageIds);
 
@@ -32,20 +32,43 @@ export function ImageGallery({ imageIds }: { imageIds: string[] }) {
 
   const currentMessageIndex = currentMessage?.content.index ?? currentIndex;
 
-  // // Sync currentIndex with initialIndex when it changes
   useEffect(() => {
-    if (api && api.selectedScrollSnap() !== currentMessageIndex) {
-      api.scrollTo(currentMessageIndex);
-    }
-  }, [api, currentMessageIndex]);
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
-  // Update current index when carousel changes
+  useEffect(() => {
+    if (!isMounted.current || !api) return;
+    
+    const targetIndex = currentMessage?.content.index ?? 0;
+    
+    if (ignoreNextScroll.current) {
+      ignoreNextScroll.current = false;
+      return;
+    }
+
+    if (api.selectedScrollSnap() !== targetIndex) {
+      ignoreNextScroll.current = true;
+      api.scrollTo(targetIndex);
+    }
+  }, [api, currentMessage?.content.index]);
+
   useEffect(() => {
     if (!api) return;
 
     const onSelect = () => {
+      if (!isMounted.current) return;
+      
       const newIndex = api.selectedScrollSnap();
-      if (currentMessage) {
+      
+      if (ignoreNextScroll.current) {
+        ignoreNextScroll.current = false;
+        return;
+      }
+
+      if (currentMessage && currentMessage.content.index !== newIndex) {
         setCurrentMessage({
           ...currentMessage,
           content: { ...currentMessage.content, index: newIndex },
@@ -54,6 +77,7 @@ export function ImageGallery({ imageIds }: { imageIds: string[] }) {
     };
 
     const onSettle = () => {
+      if (!isMounted.current) return;
       const newIndex = api.selectedScrollSnap();
       setCurrentIndex(newIndex);
     };

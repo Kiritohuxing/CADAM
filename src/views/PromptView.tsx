@@ -9,12 +9,9 @@ import { useQueryClient, useMutation } from '@tanstack/react-query';
 import { useState, useMemo, useEffect } from 'react';
 import { Content, Conversation, Model } from '@shared/types';
 import { MessageItem } from '../types/misc.ts';
-import { LimitReachedMessage } from '@/components/LimitReachedMessage';
-import { LowPromptsWarningMessage } from '@/components/LowPromptsWarningMessage';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { cn } from '@/lib/utils';
 import { SelectedItemsContext } from '@/contexts/SelectedItemsContext';
-import posthog from 'posthog-js';
 import * as Sentry from '@sentry/react';
 import { useSendContentMutation } from '@/services/messageService';
 import { useProfile } from '@/services/profileService';
@@ -36,8 +33,7 @@ const EXTENSION_PILLS = [
 export function PromptView() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, billing, isLoading } = useAuth();
-  const totalTokens = billing?.tokens.total ?? 0;
+  const { user, isLoading } = useAuth();
   const { data: profile, isLoading: isProfileLoading } = useProfile();
   const { isSidebarOpen } = useLayoutContext();
   const queryClient = useQueryClient();
@@ -53,7 +49,7 @@ export function PromptView() {
 
   const [type, setType] = useState<'parametric' | 'creative'>('parametric');
 
-  const [model, setModel] = useState<Model>('google/gemini-3.1-pro-preview');
+  const [model, setModel] = useState<Model>('doubao-seed-code-preview-251028');
 
   const handleTypeChange = (newType: 'parametric' | 'creative') => {
     setType(newType);
@@ -61,7 +57,7 @@ export function PromptView() {
     if (newType === 'creative') {
       setModel('quality');
     } else {
-      setModel('google/gemini-3.1-pro-preview');
+      setModel('doubao-seed-code-preview-251028');
     }
   };
 
@@ -73,16 +69,6 @@ export function PromptView() {
   const newConversationId = useMemo(() => {
     return crypto.randomUUID();
   }, []);
-
-  const lowPrompts = useMemo(() => {
-    if (isLoading) return false;
-    return totalTokens > 0 && totalTokens <= 10;
-  }, [totalTokens, isLoading]);
-
-  const limitReached = useMemo(() => {
-    if (isLoading) return false;
-    return totalTokens <= 0;
-  }, [totalTokens, isLoading]);
 
   const { mutate: sendMessage } = useSendContentMutation({
     conversation: {
@@ -117,15 +103,6 @@ export function PromptView() {
 
   const { mutate: handleGenerate } = useMutation({
     mutationFn: async (content: Content) => {
-      posthog.capture('new_conversation', {
-        type: type,
-        model_name: model,
-        text: (content.text ?? '').trim().slice(0, 100),
-        image_count: content.images?.length ?? 0,
-        mesh_count: content.mesh ? 1 : 0,
-        conversation_id: newConversationId,
-      });
-
       // Create conversation immediately with 'New Conversation'
       const { data: conversation, error: conversationError } = await supabase
         .from('conversations')
@@ -265,7 +242,6 @@ export function PromptView() {
                   }}
                   placeholder="Start building with Adam..."
                   type={type}
-                  disabled={limitReached}
                   model={model}
                   setModel={setModel}
                   showPromptGenerator={true}
@@ -279,18 +255,8 @@ export function PromptView() {
                     <div className="h-5 w-5 animate-spin rounded-full border-2 border-adam-blue border-t-transparent" />
                   </div>
                 )}
-                {!isLoading && user && limitReached && (
-                  <div className="absolute left-0 right-0 top-0">
-                    <LimitReachedMessage />
-                  </div>
-                )}
-                {!isLoading && user && lowPrompts && !limitReached && (
-                  <div className="absolute left-0 right-0 top-0">
-                    <LowPromptsWarningMessage tokensRemaining={totalTokens} />
-                  </div>
-                )}
               </div>
-              {!isLoading && user && !limitReached && !lowPrompts && (
+              {!isLoading && user && (
                 <div className="flex flex-wrap justify-center gap-2">
                   {EXTENSION_PILLS.map(({ href, event, label }) => (
                     <a
@@ -298,14 +264,6 @@ export function PromptView() {
                       href={href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={() => {
-                        try {
-                          posthog.capture(event, { location: 'prompt_view' });
-                        } catch {
-                          // Analytics failures (e.g. blocked by ad-blocker)
-                          // must never block the link's navigation.
-                        }
-                      }}
                       className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-sm text-adam-text-secondary transition-colors hover:border-adam-blue/40 hover:bg-adam-blue/10 hover:text-adam-text-primary"
                     >
                       <span>

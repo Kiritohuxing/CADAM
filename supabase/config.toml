@@ -20,30 +20,6 @@ policy = "per_worker"
 enabled = true
 verify_jwt = true
 
-[functions.billing-status]
-enabled = true
-verify_jwt = true
-
-[functions.billing-checkout]
-enabled = true
-verify_jwt = true
-
-[functions.billing-portal]
-enabled = true
-verify_jwt = true
-
-[functions.billing-products]
-enabled = true
-verify_jwt = false
-
-[functions.mesh]
-enabled = true
-verify_jwt = true
-
-[functions.jackson-pollock]
-enabled = true
-verify_jwt = false
-
 [functions.title-generator]
 enabled = true
 verify_jwt = true
@@ -66,6 +42,7 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/creative-chat/deno.json"
 entrypoint = "./functions/creative-chat/index.ts"
+static_files = [ "./functions/creative-chat/SKILL.md" ]
 
 [storage.buckets.meshes]
 public = false
