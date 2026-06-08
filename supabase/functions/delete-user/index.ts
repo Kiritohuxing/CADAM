@@ -142,3 +142,5 @@ async function listAllPaths(
 
   return allPaths;
 }
+
+// @author Kiritohuxing

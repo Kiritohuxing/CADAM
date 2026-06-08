@@ -4,3 +4,5 @@ import { ResetPasswordView } from '@/views/ResetPasswordView';
 export const Route = createFileRoute('/reset-password')({
   component: ResetPasswordView,
 });
+
+// @author Kiritohuxing

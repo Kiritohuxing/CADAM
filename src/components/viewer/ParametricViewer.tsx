@@ -70,7 +70,7 @@ export function ParametricViewer({
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <div className="text-sm text-adam-neutral-400">无代码</div>
+            <div className="text-sm text-adam-neutral-400">无代�?/div>
           </div>
         )}
         
@@ -110,3 +110,5 @@ export function ParametricViewer({
     </div>
   );
 }
+
+// @author Kiritohuxing

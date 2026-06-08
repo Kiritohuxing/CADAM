@@ -1,4 +1,4 @@
-// Marketing copy for each plan tier â€” price, name, and token amount come
+// Marketing copy for each plan tier â€?price, name, and token amount come
 // from the billing service (/v1/products), but the bullets below are a
 // product decision that doesn't belong in the billing catalog.
 
@@ -47,3 +47,5 @@ export const PLAN_DISPLAY_NAMES: Record<PlanLevel, string> = {
 };
 
 export const PLAN_ORDER: PlanLevel[] = ['free', 'standard', 'pro', 'max'];
+
+// @author Kiritohuxing

@@ -101,7 +101,7 @@ export function ParameterInput({
     const hex = cssToHex(currentValue);
     const isColor = hex !== '';
     if (isColor) {
-      // Strip the redundant "Color" suffix â€” the whole color section groups
+      // Strip the redundant "Color" suffix â€?the whole color section groups
       // these together and the swatch/hex already signal it's a color. Keeps
       // the 80px label column from wrapping multi-word names to two lines.
       const labelText =
@@ -309,3 +309,5 @@ export function ParameterInput({
     }
   }
 }
+
+// @author Kiritohuxing

@@ -125,3 +125,5 @@ export type ConversationSettings = {
 } | null;
 
 export type Profile = Database['public']['Tables']['profiles']['Row'];
+
+// @author Kiritohuxing

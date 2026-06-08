@@ -6,7 +6,7 @@ interface StreamingCodeBlockProps {
   filename?: string;
 }
 
-// Keep it compact â€” stays inside the chat bubble without swallowing the view.
+// Keep it compact â€?stays inside the chat bubble without swallowing the view.
 const MAX_HEIGHT = 180;
 
 // Typewriter reveal: ~300 chars/sec feels live without being frantic.
@@ -101,3 +101,5 @@ export function StreamingCodeBlock({
     </div>
   );
 }
+
+// @author Kiritohuxing

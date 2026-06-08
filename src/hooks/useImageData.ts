@@ -112,3 +112,5 @@ export function useImagesData(ids: string[]) {
 
   return { data: dataQueries, url: urlQueries };
 }
+
+// @author Kiritohuxing

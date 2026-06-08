@@ -123,7 +123,7 @@ export function ParameterSheetContent({
     }
   };
 
-  // Per-format dispatch tables â€” each supported format is a single line in each map.
+  // Per-format dispatch tables â€?each supported format is a single line in each map.
   const downloadHandlers: Record<DownloadFormat, () => void | Promise<void>> = {
     stl: handleDownloadSTL,
     scad: handleDownloadOpenSCAD,
@@ -218,3 +218,5 @@ export function ParameterSheetContent({
     </>
   );
 }
+
+// @author Kiritohuxing

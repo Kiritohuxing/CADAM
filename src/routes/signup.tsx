@@ -4,3 +4,5 @@ import { SignUpView } from '@/views/SignUpView';
 export const Route = createFileRoute('/signup')({
   component: SignUpView,
 });
+
+// @author Kiritohuxing

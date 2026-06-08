@@ -30,3 +30,5 @@ export interface MessageItem {
   source: 'upload' | 'selection';
   fileType?: MeshFileType;
 }
+
+// @author Kiritohuxing

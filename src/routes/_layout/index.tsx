@@ -4,3 +4,5 @@ import { PromptView } from '@/views/PromptView';
 export const Route = createFileRoute('/_layout/')({
   component: PromptView,
 });
+
+// @author Kiritohuxing

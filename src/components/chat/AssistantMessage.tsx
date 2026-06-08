@@ -694,3 +694,5 @@ function AssistantMessageImagesViewer({ message }: { message: Message }) {
     </div>
   );
 }
+
+// @author Kiritohuxing

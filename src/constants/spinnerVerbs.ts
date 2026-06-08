@@ -68,3 +68,5 @@ export const SPINNER_VERBS = [
 export function pickSpinnerVerb(): string {
   return SPINNER_VERBS[Math.floor(Math.random() * SPINNER_VERBS.length)];
 }
+
+// @author Kiritohuxing

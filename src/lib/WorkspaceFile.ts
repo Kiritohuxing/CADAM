@@ -14,3 +14,5 @@ export default class WorkspaceFile extends File {
     this.path = options?.path || fileName;
   }
 }
+
+// @author Kiritohuxing

@@ -120,3 +120,5 @@ const Loader = ({ message }: Props) => {
 };
 
 export default Loader;
+
+// @author Kiritohuxing

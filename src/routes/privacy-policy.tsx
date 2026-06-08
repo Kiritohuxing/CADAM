@@ -4,3 +4,5 @@ import { PrivacyPolicyView } from '@/views/PrivacyPolicyView';
 export const Route = createFileRoute('/privacy-policy')({
   component: PrivacyPolicyView,
 });
+
+// @author Kiritohuxing

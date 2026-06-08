@@ -206,12 +206,12 @@ for (x = [-10, 0, 10])
 ## Phase 3: Special Considerations for WebAssembly Compilation
 
 ### What Works:
-- ‚úÖ All standard OpenSCAD primitives
-- ‚úÖ Boolean operations
-- ‚úÖ Extrusions (linear, rotate)
-- ‚úÖ Transform operations
-- ‚úÖ BOSL, BOSL2, MCAD libraries (auto-loaded)
-- ‚úÖ Color commands (rendered in Three.js)
+- ‚ú?All standard OpenSCAD primitives
+- ‚ú?Boolean operations
+- ‚ú?Extrusions (linear, rotate)
+- ‚ú?Transform operations
+- ‚ú?BOSL, BOSL2, MCAD libraries (auto-loaded)
+- ‚ú?Color commands (rendered in Three.js)
 
 ### Limitations:
 - ‚ö†Ô∏è Large `$fn` values may cause browser performance issues
@@ -292,3 +292,5 @@ Always respond in the **same language as the user's message**. If the user write
 | Round edges | `hull() of spheres` |
 | 2D to 3D | `linear_extrude(h) 2d_shape` |
 | Smooth | `$fn = 50;` |
+
+// @author Kiritohuxing

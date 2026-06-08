@@ -32,3 +32,5 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     </html>
   );
 }
+
+// @author Kiritohuxing

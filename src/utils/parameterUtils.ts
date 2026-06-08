@@ -164,7 +164,7 @@ export function isMeasurementParameter(param: Parameter): boolean {
  *
  * Detection trick: canvas fillStyle silently keeps the previous value on
  * invalid input. We seed it with 'transparent' (normalizes to
- * 'rgba(0, 0, 0, 0)' â€” never a 6-char hex, so no collision with any real
+ * 'rgba(0, 0, 0, 0)' â€?never a 6-char hex, so no collision with any real
  * color the user might declare) and check whether setting the user value
  * changed the normalized form. Opaque colors round-trip to #rrggbb;
  * rejected inputs leave the sentinel intact.
@@ -283,3 +283,5 @@ export function escapeReplacement(string: string) {
 export function escapeQuotes(string: string) {
   return string.replace(/"/g, '\\"');
 }
+
+// @author Kiritohuxing

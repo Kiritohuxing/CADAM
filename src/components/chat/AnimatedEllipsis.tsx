@@ -84,3 +84,5 @@ export function AnimatedEllipsis({
     </>
   );
 }
+
+// @author Kiritohuxing

@@ -29,3 +29,5 @@ declare module '@tanstack/react-router' {
     router: ReturnType<typeof getRouter>;
   }
 }
+
+// @author Kiritohuxing

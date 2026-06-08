@@ -660,7 +660,7 @@ function TextAreaChat({
   }, [type]);
 
   // ------------------------------------------------------------
-  // Placeholder â€“ Typed-out Animation
+  // Placeholder â€?Typed-out Animation
   // When the target placeholder (based on mode & image state)
   // changes, we progressively reveal each character so it looks
   // like it's being typed in real-time. This gives users a more
@@ -1715,3 +1715,5 @@ function TextAreaChat({
 }
 
 export default TextAreaChat;
+
+// @author Kiritohuxing

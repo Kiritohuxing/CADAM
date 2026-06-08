@@ -346,7 +346,7 @@ export function GlbPreview({
             Math.min(1, timeSinceStart / LOGO_DISSOLVE_DURATION),
             0,
           );
-          progress = 1 - dissolveProgress; // Reverse: 1 â†’ 0
+          progress = 1 - dissolveProgress; // Reverse: 1 â†?0
 
           // Before dissolve starts, show adam logo
           if (!pendingMeshVerticesRef.current) {
@@ -376,7 +376,7 @@ export function GlbPreview({
             // Mesh not ready yet: stay random cloud
             progress = 0;
           } else {
-            // Mesh loaded & ready: animate from random (0) â†’ mesh (1)
+            // Mesh loaded & ready: animate from random (0) â†?mesh (1)
             const timeSinceDiffusionStart =
               Date.now() - diffusionStartTimeRef.current;
             const diffusionProgress = Math.min(
@@ -389,7 +389,7 @@ export function GlbPreview({
               diffusionProgress *
               diffusionProgress *
               (3 - 2 * diffusionProgress);
-            progress = smoothProgress; // 0 â†’ 1
+            progress = smoothProgress; // 0 â†?1
           }
         }
 
@@ -432,3 +432,5 @@ export function GlbPreview({
     </div>
   );
 }
+
+// @author Kiritohuxing

@@ -5,3 +5,5 @@ export const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS, GET',
   'Access-Control-Expose-Headers': 'Content-Length, Content-Type',
 };
+
+// @author Kiritohuxing

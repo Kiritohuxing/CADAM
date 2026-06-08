@@ -12,3 +12,5 @@ function AuthRoute() {
     </AuthGuard>
   );
 }
+
+// @author Kiritohuxing

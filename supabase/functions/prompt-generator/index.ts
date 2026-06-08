@@ -186,3 +186,5 @@ Return only the enhanced prompt text, no introductory phrases.`;
     );
   }
 });
+
+// @author Kiritohuxing

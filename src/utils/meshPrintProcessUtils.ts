@@ -1289,3 +1289,5 @@ const getAppropriateScalingFactor = (
 
   return { scaleFactor, reason };
 };
+
+// @author Kiritohuxing

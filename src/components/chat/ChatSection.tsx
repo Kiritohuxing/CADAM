@@ -196,7 +196,7 @@ export function ChatSection({
       >
         <div className="pointer-events-none sticky left-0 top-0 z-50 mr-4 h-3 bg-gradient-to-b from-adam-bg-secondary-dark/90 to-transparent" />
         <div className="space-y-4 pb-6">
-          {/* fix: 去重，按 id 只保留第一条 */}
+          {/* fix: 去重，按 id 只保留第一�?*/}
           {messages.reduce((acc: TreeNode<Message>[], msg) => {
             if (!acc.find(m => m.id === msg.id)) {
               acc.push(msg);
@@ -259,3 +259,5 @@ export function ChatSection({
     </div>
   );
 }
+
+// @author Kiritohuxing

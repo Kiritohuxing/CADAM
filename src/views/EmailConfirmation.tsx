@@ -135,3 +135,5 @@ function EmailConfirmation() {
 }
 
 export default EmailConfirmation;
+
+// @author Kiritohuxing

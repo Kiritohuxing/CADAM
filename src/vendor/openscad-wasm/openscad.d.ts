@@ -26,3 +26,5 @@ export interface FS {
 }
 declare function OpenSCAD(options?: InitOptions): Promise<OpenSCAD>;
 export default OpenSCAD;
+
+// @author Kiritohuxing

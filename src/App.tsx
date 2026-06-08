@@ -40,3 +40,5 @@ function App({ error }: { error?: unknown }) {
 }
 
 export default App;
+
+// @author Kiritohuxing

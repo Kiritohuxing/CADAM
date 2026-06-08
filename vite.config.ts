@@ -77,3 +77,5 @@ export default defineConfig({
     exclude: ['@zip.js/zip.js', 'three', 'three-stdlib', '@sentry/vite-plugin'],
   },
 });
+
+// @author Kiritohuxing

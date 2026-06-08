@@ -7,3 +7,5 @@ export function Box({ className, ...props }: BoxProps) {
     <div className={cn('flex items-center justify-center', className)} {...props} />
   );
 }
+
+// @author Kiritohuxing

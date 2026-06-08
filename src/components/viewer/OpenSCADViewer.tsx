@@ -85,13 +85,12 @@ export function OpenSCADPreview({
   // Hold on to the last colored group so its meshes' GPU resources can be
   // released when a new compile replaces it (or the component unmounts).
   const mountedGroupRef = useRef<Group | null>(null);
-  // Same story for the STL-path BufferGeometry â€” every compile produces a
+  // Same story for the STL-path BufferGeometry â€?every compile produces a
   // fresh one, and even when OFF wins the render the STL still parses, so
   // the previous geometry's VRAM must be released on replacement.
   const mountedGeometryRef = useRef<BufferGeometry | null>(null);
   // Capture the brand fallback color in a ref so the OFF-parse effect can
-  // read the current value without listing `color` as a dependency â€”
-  // otherwise every fallback-color change would rebuild the entire
+  // read the current value without listing `color` as a dependency â€?  // otherwise every fallback-color change would rebuild the entire
   // per-color mesh group, which gets expensive for large models.
   const fallbackColorRef = useRef(color);
   useEffect(() => {
@@ -226,10 +225,10 @@ export function OpenSCADPreview({
         const parsed = parseColoredOff(text);
 
         // OpenSCAD paints any face without an explicit color() call with its
-        // built-in model yellow (#F9D72C â‰ˆ 249,215,44). That's a noisy
-        // default for our preview â€” strip it so those faces fall through to
+        // built-in model yellow (#F9D72C â‰?249,215,44). That's a noisy
+        // default for our preview â€?strip it so those faces fall through to
         // the brand fallback color instead. Manifold also emits a secondary
-        // yellow-green (#9DCB51 â‰ˆ 157,203,81) for CSG-cut faces; treat that
+        // yellow-green (#9DCB51 â‰?157,203,81) for CSG-cut faces; treat that
         // the same. Explicit color() values pass through untouched.
         for (const face of parsed.faces) {
           if (!face.color) continue;
@@ -298,7 +297,7 @@ export function OpenSCADPreview({
         }
 
         // If every face was rejected (malformed OFF, empty mesh, etc.) the
-        // group has zero children â€” leave coloredGroup null so the render
+        // group has zero children â€?leave coloredGroup null so the render
         // gate falls back to the single-color STL path instead of drawing
         // nothing.
         if (group.children.length === 0) {
@@ -434,7 +433,7 @@ function FixWithAIButton({
           )}
           onClick={() => {
             // error crosses the worker boundary as a plain object, so
-            // instanceof OpenSCADError won't narrow â€” check the name
+            // instanceof OpenSCADError won't narrow â€?check the name
             // discriminator and narrow via a local type guard instead of
             // a cast.
             const isOpenSCADError = (e: unknown): e is OpenSCADError =>
@@ -453,3 +452,5 @@ function FixWithAIButton({
     </div>
   );
 }
+
+// @author Kiritohuxing

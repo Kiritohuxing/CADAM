@@ -310,3 +310,5 @@ export const applyMaterialAdjustments = (
   // Ensure material updates
   material.needsUpdate = true;
 };
+
+// @author Kiritohuxing

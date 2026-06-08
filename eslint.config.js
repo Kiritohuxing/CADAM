@@ -38,3 +38,5 @@ export default tseslint.config(
     },
   },
 );
+
+// @author Kiritohuxing

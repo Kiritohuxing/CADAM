@@ -72,3 +72,5 @@ class Tree<T extends TreeElement> {
 }
 
 export default Tree;
+
+// @author Kiritohuxing

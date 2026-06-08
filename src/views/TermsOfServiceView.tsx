@@ -193,3 +193,5 @@ export function TermsOfServiceView() {
     </div>
   );
 }
+
+// @author Kiritohuxing

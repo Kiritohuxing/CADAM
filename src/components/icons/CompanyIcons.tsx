@@ -96,3 +96,5 @@ export const GitHubIcon = createLucideIcon('github', <GitHubSvg />);
 export const DiscordIcon = createLucideIcon('discord', <DiscordSvg />);
 export const GoogleIcon = createLucideIcon('google', <GoogleSvg />);
 export const WhatsAppIcon = createLucideIcon('whatsapp', <WhatsAppSvg />);
+
+// @author Kiritohuxing

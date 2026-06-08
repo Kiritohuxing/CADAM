@@ -18,3 +18,5 @@ export const libraries = [
     url: `${import.meta.env.BASE_URL}/libraries/BOSL.zip`,
   },
 ];
+
+// @author Kiritohuxing

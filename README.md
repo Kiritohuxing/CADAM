@@ -6,7 +6,7 @@
   </picture>
 </div>
 
-<h1 align="center"> ⛮ The Open Source Text to CAD Web App ⛮ </h1>
+<h1 align="center"> �?The Open Source Text to CAD Web App �?</h1>
 
 <div align="center">
 
@@ -27,10 +27,10 @@
 
 ---
 
-## ✨ Features
+## �?Features
 
 - 🤖 **AI-Powered Generation** - Transform natural language and images into 3D models
-- 🎛️ **Parametric Controls** - Interactive sliders for instant dimension adjustments
+- 🎛�?**Parametric Controls** - Interactive sliders for instant dimension adjustments
 - 📦 **Multiple Export Formats** - Export as .STL, .SCAD, or .DXF files
 - 🌐 **Browser-Based** - Runs entirely in your browser using WebAssembly
 - 📚 **Library Support** - Includes BOSL, BOSL2, and MCAD libraries
@@ -158,7 +158,7 @@ npx supabase start
 npx supabase functions serve --no-verify-jwt
 ```
 
-## 🛠️ Built With
+## 🛠�?Built With
 
 - **Frontend:** React 19 + TypeScript + TanStack Start + Vite
 - **3D Rendering:** Three.js + React Three Fiber
@@ -205,7 +205,7 @@ Components and attributions:
   <img src="https://www.repostars.dev/api/embed?repo=Adam-CAD/CADAM&theme=forest" alt="CADAM Star History" width="700"/>
 </a>
 
-<sub>Live chart by <a href="https://www.repostars.dev/?repos=Adam-CAD%2FCADAM&theme=forest">RepoStars</a> — click for the interactive version.</sub>
+<sub>Live chart by <a href="https://www.repostars.dev/?repos=Adam-CAD%2FCADAM&theme=forest">RepoStars</a> �?click for the interactive version.</sub>
 
 </div>
 
@@ -213,7 +213,7 @@ Components and attributions:
 
 <div align="center">
   
-**⭐ If you find CADAM useful, please consider giving it a star!**
+**�?If you find CADAM useful, please consider giving it a star!**
 
 [![Stars](https://img.shields.io/github/stars/Adam-CAD/cadam?style=social&logo=github)](https://github.com/Adam-CAD/cadam/stargazers)
 
@@ -221,3 +221,5 @@ Made with 💙 for the 3D printing and CAD community
 
 </div>
 #CADAM
+
+// @author Kiritohuxing

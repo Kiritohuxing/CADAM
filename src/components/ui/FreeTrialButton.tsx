@@ -152,3 +152,5 @@ const FreeTrialButton: React.FC<FreeTrialButtonProps> = ({
 };
 
 export default FreeTrialButton;
+
+// @author Kiritohuxing

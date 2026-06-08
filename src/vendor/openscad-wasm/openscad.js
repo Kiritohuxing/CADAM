@@ -14,3 +14,4 @@ var Module=typeof OpenSCAD!="undefined"?OpenSCAD:{};var readyPromiseResolve,read
 );
 })();
 export default OpenSCAD;
+// @author Kiritohuxing

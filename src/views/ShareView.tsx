@@ -66,3 +66,5 @@ export default function ShareView() {
     </CurrentMessageContext.Provider>
   );
 }
+
+// @author Kiritohuxing

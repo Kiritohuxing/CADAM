@@ -106,3 +106,5 @@ export function ResetPasswordView() {
     </div>
   );
 }
+
+// @author Kiritohuxing

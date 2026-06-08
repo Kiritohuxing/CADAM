@@ -171,3 +171,5 @@ function extractTopLevelLibraryImports(source: string): {
 
   return { imports, body: body.join('\n') };
 }
+
+// @author Kiritohuxing

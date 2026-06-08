@@ -170,7 +170,7 @@ class OpenSCADWrapper {
       .filter((x) => !!x);
 
     // In addition to the primary STL output (used for downloads), emit an
-    // OFF file â€” OpenSCAD's manifold backend preserves per-face colors in
+    // OFF file â€?OpenSCAD's manifold backend preserves per-face colors in
     // OFF (RGBA appended to each face line), which we parse client-side to
     // render OpenSCAD color() calls. --backend=manifold is required to get
     // the color-aware mesh; --enable=manifold was the old (now-default)
@@ -178,7 +178,7 @@ class OpenSCADWrapper {
     // --export-format is global in OpenSCAD and overrides the per-output
     // extension inference, so we cannot force binstl here without
     // corrupting the /out.off companion output. Preview STL falls back to
-    // ASCII (larger, slower to parse) â€” the on-demand download path in
+    // ASCII (larger, slower to parse) â€?the on-demand download path in
     // exportFile() still forces binstl because it only emits one file.
     //
     // Multi-output via two -o flags (/out.stl + /out.off) is supported by
@@ -206,7 +206,7 @@ class OpenSCADWrapper {
       render.log.stdErr.includes('Current top level object is not a 3D object.')
     ) {
       // Create the SVG, which will internally be saved as out.svg.
-      // Use the same flag set as the 3D path â€” the 2025.x build dropped
+      // Use the same flag set as the 3D path â€?the 2025.x build dropped
       // --enable=manifold / --enable=fast-csg in favor of --backend=manifold.
       const svgExport = await this.executeOpenscad(
         data.code,
@@ -433,3 +433,5 @@ class OpenSCADWrapper {
 }
 
 export default OpenSCADWrapper;
+
+// @author Kiritohuxing

@@ -2,7 +2,7 @@
  * Minimal OFF (Object File Format) parser that preserves per-face colors.
  *
  * OpenSCAD's 2025.x WASM build emits OFF files where each face line may end
- * with RGBA bytes (0-255) after the vertex indices â€” that's how we recover
+ * with RGBA bytes (0-255) after the vertex indices â€?that's how we recover
  * the colors the user declared via `color()` in their SCAD source.
  *
  * Format:
@@ -53,7 +53,7 @@ export function parseColoredOff(text: string): ParsedOff {
     throw new Error('Invalid OFF header: vertex/face counts unreadable');
   }
   // A truncated file would blow up with a confusing TypeError deep in the
-  // per-line split â€” fail fast with a clear message instead.
+  // per-line split â€?fail fast with a clear message instead.
   if (lines.length < cursor + numVertices + numFaces) {
     throw new Error(
       `OFF file truncated: expected ${cursor + numVertices + numFaces} non-blank lines, got ${lines.length}`,
@@ -102,7 +102,7 @@ export function parseColoredOff(text: string): ParsedOff {
     if (n === 3) {
       faces.push({ vertices: [verts[0], verts[1], verts[2]], color });
     } else if (n > 3) {
-      // Fan-triangulate from vertex 0. Correct only for convex polygons â€”
+      // Fan-triangulate from vertex 0. Correct only for convex polygons â€?
       // concave faces would self-intersect. OpenSCAD's manifold backend (our
       // only producer) emits triangles exclusively, so n > 3 is effectively a
       // defensive branch; if another OFF source ever feeds in non-convex
@@ -118,3 +118,5 @@ export function parseColoredOff(text: string): ParsedOff {
 
   return { vertices, faces };
 }
+
+// @author Kiritohuxing

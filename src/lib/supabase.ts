@@ -14,3 +14,5 @@ const supabaseUrl = rawSupabaseUrl || 'http://localhost';
 const supabaseKey = rawSupabaseKey || 'public-anon-key';
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseKey);
+
+// @author Kiritohuxing

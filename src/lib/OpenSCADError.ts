@@ -10,3 +10,5 @@ class OpenSCADError extends Error {
 }
 
 export default OpenSCADError;
+
+// @author Kiritohuxing

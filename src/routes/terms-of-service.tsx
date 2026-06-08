@@ -4,3 +4,5 @@ import { TermsOfServiceView } from '@/views/TermsOfServiceView';
 export const Route = createFileRoute('/terms-of-service')({
   component: TermsOfServiceView,
 });
+
+// @author Kiritohuxing

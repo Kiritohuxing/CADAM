@@ -22,3 +22,4 @@ self.onmessage = async (event) => {
     self.postMessage({ id, type, data: null, err: (err as Error).message });
   }
 };
+// @author Kiritohuxing

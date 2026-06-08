@@ -289,3 +289,5 @@ export async function chatCompletions(
   
   return '';
 }
+
+// @author Kiritohuxing

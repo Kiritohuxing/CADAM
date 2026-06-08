@@ -237,3 +237,5 @@ function convertType(rawValue: string): {
 function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // $& means the whole matched string
 }
+
+// @author Kiritohuxing

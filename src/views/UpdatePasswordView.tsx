@@ -112,3 +112,5 @@ export function UpdatePasswordView() {
     </div>
   );
 }
+
+// @author Kiritohuxing

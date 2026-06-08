@@ -25,3 +25,5 @@ export function OrthographicCube({
 }
 
 export default OrthographicCube;
+
+// @author Kiritohuxing

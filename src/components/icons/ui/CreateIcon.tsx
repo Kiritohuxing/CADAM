@@ -7,3 +7,5 @@ function CreateIconSvg() {
 }
 
 export const CreateIcon = createLucideIcon('create', <CreateIconSvg />);
+
+// @author Kiritohuxing

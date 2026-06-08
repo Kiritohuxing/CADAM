@@ -150,3 +150,5 @@ export async function generateConversationTitle(
   const data = await response.json();
   return data.title || 'New Conversation';
 }
+
+// @author Kiritohuxing

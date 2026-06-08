@@ -102,3 +102,5 @@ export function ColorPicker({ color, onChange }: ColorPickerProps) {
     </Popover>
   );
 }
+
+// @author Kiritohuxing

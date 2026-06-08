@@ -15,3 +15,5 @@ function GoodEarthSvg() {
 }
 
 export const GoodEarth = createLucideIcon('good-earth', <GoodEarthSvg />);
+
+// @author Kiritohuxing

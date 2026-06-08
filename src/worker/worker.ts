@@ -71,3 +71,5 @@ self.onmessage = async (
     self.postMessage(response);
   }
 };
+
+// @author Kiritohuxing

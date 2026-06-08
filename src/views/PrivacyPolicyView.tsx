@@ -100,3 +100,5 @@ export function PrivacyPolicyView() {
     </div>
   );
 }
+
+// @author Kiritohuxing

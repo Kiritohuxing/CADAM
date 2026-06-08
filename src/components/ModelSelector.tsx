@@ -178,8 +178,8 @@ export function ModelSelector({
         align="end"
         // Radix fires this just before it tries to refocus the trigger.
         // We intercept the event: if the menu was opened with a pointer we
-        //   â€“ call `event.preventDefault()` to stop the refocus
-        //   â€“ blur the trigger to clear any outline.
+        //   â€?call `event.preventDefault()` to stop the refocus
+        //   â€?blur the trigger to clear any outline.
         // For keyboard users we leave the default behaviour untouched.
         onCloseAutoFocus={(event) => {
           if (openedWithPointerRef.current) {
@@ -230,3 +230,5 @@ export function ModelSelector({
     </DropdownMenu>
   );
 }
+
+// @author Kiritohuxing

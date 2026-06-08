@@ -10,7 +10,7 @@ const debugLog = (...args: unknown[]) => {
 };
 
 export const INSTRUCTIONS_3D =
-  'You are generating a fully textured and rendered 3D model. Output one centered 3D model or multiple centered objects, no text. Plain white background (or an empty background which provides optimal contrast with the textures of the 3D model), neutral lighting, and a soft shadow directly under the 3D model. Keep the entire object fully in-frame with 5â€“10% padding; no cropping. Make sure the description strongly impacts the form and shape of the 3D Model not just the surface texture';
+  'You are generating a fully textured and rendered 3D model. Output one centered 3D model or multiple centered objects, no text. Plain white background (or an empty background which provides optimal contrast with the textures of the 3D model), neutral lighting, and a soft shadow directly under the 3D model. Keep the entire object fully in-frame with 5â€?0% padding; no cropping. Make sure the description strongly impacts the form and shape of the 3D Model not just the surface texture';
 
 export type ImageGenerationResult = {
   imageBytes: Buffer;
@@ -104,3 +104,5 @@ export const generateImageWithVolcengine = async (
     throw error;
   }
 };
+
+// @author Kiritohuxing

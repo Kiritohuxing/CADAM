@@ -96,3 +96,5 @@ export function getProgress(
     stage: currentStage,
   };
 }
+
+// @author Kiritohuxing

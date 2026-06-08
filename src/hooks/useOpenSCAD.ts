@@ -266,3 +266,5 @@ export function useOpenSCAD(mode: WorkerMode = 'parametric') {
     compileError,
   };
 }
+
+// @author Kiritohuxing

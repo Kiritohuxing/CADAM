@@ -13,3 +13,5 @@ export function UserAvatar({ className }: { className?: string }) {
     </Avatar>
   );
 }
+
+// @author Kiritohuxing

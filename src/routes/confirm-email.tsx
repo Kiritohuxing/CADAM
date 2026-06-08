@@ -4,3 +4,5 @@ import EmailConfirmation from '@/views/EmailConfirmation';
 export const Route = createFileRoute('/confirm-email')({
   component: EmailConfirmation,
 });
+
+// @author Kiritohuxing

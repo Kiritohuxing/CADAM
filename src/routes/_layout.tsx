@@ -4,3 +4,5 @@ import { Layout } from '@/components/Layout';
 export const Route = createFileRoute('/_layout')({
   component: Layout,
 });
+
+// @author Kiritohuxing

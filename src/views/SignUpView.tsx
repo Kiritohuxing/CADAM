@@ -97,3 +97,5 @@ export function SignUpView() {
     </div>
   );
 }
+
+// @author Kiritohuxing

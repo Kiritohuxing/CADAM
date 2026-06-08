@@ -17,3 +17,5 @@ export function useIsMobile(): boolean {
 
   return isMobile;
 }
+
+// @author Kiritohuxing

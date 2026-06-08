@@ -27,3 +27,5 @@ export function PerspectiveCube({
 }
 
 export default PerspectiveCube;
+
+// @author Kiritohuxing
